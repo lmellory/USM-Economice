@@ -7,7 +7,8 @@
   ],
   "scripts": {
     "dev": "concurrently -k \"npm:dev -w @usm/api\" \"npm:dev -w @usm/web\"",
-    "build": "npm run build -w @usm/api && npm run build -w @usm/web",
+    "build": "npm run build -w @usm/web",
+    "build:vps": "npm run build -w @usm/api && npm run build -w @usm/web",
     "typecheck": "npm run typecheck -w @usm/api && npm run typecheck -w @usm/web && npm run typecheck -w @usm/worker",
     "deploy:cloudflare": "npm run build -w @usm/web && npm run deploy -w @usm/worker",
     "migrate:cloudflare": "npm run migrate -w @usm/worker"
@@ -20,7 +21,8 @@
     "shell-quote": "^1.12.0"
   },
   "allowScripts": {
-    "esbuild@0.28.2": true,
-    "esbuild@0.25.12": true
+    "esbuild@0.28.1": true,
+    "esbuild@0.25.12": true,
+    "workerd@1.20261006.1": true
   }
 }

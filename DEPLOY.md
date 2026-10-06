@@ -44,10 +44,10 @@
 4. Укажи корневую папку репозитория `/`.
 5. Настрой сборку:
 
-   - **Build command:** `npm ci && npm run build -w @usm/web`
-   - **Deploy command:** `npx wrangler deploy --config worker/wrangler.toml`
+   - **Build command:** `npm run build`
+   - **Deploy command:** `npm run deploy --workspace=@usm/worker`
 
-Cloudflare запускает команду сборки, затем публикацию Worker из выбранной ветки; подробнее — [Workers Builds](https://developers.cloudflare.com/workers/ci-cd/builds/configuration/). При первом подключении дай Cloudflare создать собственный токен сборки. Не вставляй личный API token в файлы GitHub.
+Cloudflare сам устанавливает зависимости, выполняет `npm run build` (собирает только Mini App), затем запускает Wrangler из каталога Worker через npm workspace. Это важно: запуск Wrangler прямо из корня npm-workspace приводит к ошибке определения приложения. Подробнее — [Workers Builds для monorepo](https://developers.cloudflare.com/workers/ci-cd/builds/advanced-setups/). При первом подключении дай Cloudflare создать собственный токен сборки. Не вставляй личный API token в файлы GitHub.
 
 ## 5. Добавь переменные Worker в Cloudflare
 
