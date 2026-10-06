@@ -11,7 +11,7 @@ not_found_handling = "single-page-application"
 [[d1_databases]]
 binding = "DB"
 database_name = "usm-life"
-database_id = "REPLACE_WITH_D1_DATABASE_ID"
+database_id = "19350568-a9eb-46b9-8bbe-c407355f0467"
 migrations_dir = "migrations"
 
 [triggers]
