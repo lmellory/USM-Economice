@@ -1,0 +1,23 @@
+name = "usm-life"
+main = "src/index.ts"
+compatibility_date = "2026-10-06"
+workers_dev = true
+
+[assets]
+directory = "../apps/web/dist"
+binding = "ASSETS"
+not_found_handling = "single-page-application"
+
+[[d1_databases]]
+binding = "DB"
+database_name = "usm-life"
+database_id = "REPLACE_WITH_D1_DATABASE_ID"
+migrations_dir = "migrations"
+
+[triggers]
+crons = ["* * * * *"]
+
+[vars]
+TZ = "Europe/Chisinau"
+TRANZY_VEHICLES_URL = "https://api.tranzy.ai/v1/opendata/vehicle"
+TRANZY_REFRESH_MINUTES = "5"

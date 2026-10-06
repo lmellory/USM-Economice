@@ -1,0 +1,1 @@
+{"name":"@usm/worker","version":"1.0.0","private":true,"type":"module","scripts":{"typecheck":"tsc --noEmit -p tsconfig.json","deploy":"wrangler deploy","migrate":"wrangler d1 migrations apply usm-life --remote"},"devDependencies":{"@cloudflare/workers-types":"^5.20261002.1","typescript":"^5.8.3","wrangler":"^4.129.1"}}
