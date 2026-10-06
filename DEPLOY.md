@@ -16,7 +16,7 @@
 В Telegram открой [@BotFather](https://t.me/BotFather), отправь `/newbot`, задай имя и username, сохрани токен `BOT_TOKEN` в менеджере паролей. 
 Никому не пересылай его.
 
-Узнай свой числовой Telegram ID через доверенный способ. Ещё создай длинный webhook secret из латинских букв, цифр, `_` и `-` (от 32 символов). Он должен отличаться от bot token.
+Создай длинный webhook secret из латинских букв, цифр, `_` и `-` (от 32 символов). Он должен отличаться от bot token.
 
 ## 2. Создай приватный GitHub-репозиторий из проекта
 
@@ -57,7 +57,6 @@ Cloudflare сам устанавливает зависимости, выпол�
 |---|---|
 | `BOT_TOKEN` | токен из BotFather, тип Secret |
 | `TELEGRAM_WEBHOOK_SECRET` | созданный webhook secret, тип Secret |
-| `ADMIN_TELEGRAM_ID` | твой числовой Telegram ID, тип Secret |
 | `MINI_APP_URL` | `https://usm-life.<твой-поддомен>.workers.dev` |
 
 В разделе **Bindings** должен быть D1 binding `DB`, привязанный к базе `usm-life`. Он описан в `worker/wrangler.toml`; если Cloudflare предложит подтверждение binding, выбери именно созданную базу.
@@ -100,7 +99,7 @@ node --env-file=.env.local scripts/set-webhook.mjs
 - **Сборка не найдена:** проверь корневую папку `/`, имя Worker `usm-life` и build/deploy команды.
 - **Ошибка D1:** проверь, что ID в `worker/wrangler.toml` соответствует базе, а SQL миграции выполнен в её Console.
 - **401 в Mini App:** открывай приложение через Telegram-бота, не обычной вкладкой браузера.
-- **403:** проверь `ADMIN_TELEGRAM_ID` среди переменных Worker.
+- Mini App доступен пользователям Telegram с корректной сессией. Данные расписания, заданий и настроек каждого пользователя отделены по его Telegram ID.
 - **Бот не отвечает:** проверь webhook в Cloudflare Logs и `getWebhookInfo` Telegram; проверь совпадение webhook secret.
 - Для записи `console.error` и запросов явно включена Observability в `worker/wrangler.toml`. После следующего успешного деплоя открой Cloudflare Dashboard → **Workers & Pages** → **usm-life** → **Logs** → **Live** (в некоторых версиях панели раздел называется **Observability**). Запусти поток логов и повтори действие в Mini App.
 - Если пункта Logs/Observability нет вообще, это вопрос интерфейса или прав аккаунта, а не отсутствие обращений к Worker. Убедись, что выбрана именно запись Worker `usm-life`, а не домен/страница проекта; при необходимости владелец аккаунта должен выдать роль с доступом к Workers Logs.

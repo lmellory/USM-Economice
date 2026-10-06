@@ -24,7 +24,6 @@ services:
       PORT: 3000
       TZ: Europe/Chisinau
       DATABASE_URL: postgres://usm:${POSTGRES_PASSWORD}@db:5432/usm
-      ADMIN_TELEGRAM_ID: ${ADMIN_TELEGRAM_ID}
       BOT_TOKEN: ${BOT_TOKEN}
       TELEGRAM_WEBHOOK_SECRET: ${TELEGRAM_WEBHOOK_SECRET}
       MINI_APP_URL: ${MINI_APP_URL}

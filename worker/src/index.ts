@@ -2,7 +2,6 @@ interface Env {
   DB: D1Database;
   ASSETS: Fetcher;
   BOT_TOKEN: string;
-  ADMIN_TELEGRAM_ID?: string;
   TELEGRAM_WEBHOOK_SECRET: string;
   MINI_APP_URL: string;
   TRANZY_API_KEY?: string;
@@ -33,7 +32,7 @@ async function apiRequest(request:Request,env:Env,path:string):Promise<Response>
   if(path==='/health')return json({ok:true,service:'usm-life-worker'});
   if(path==='/telegram/webhook'&&request.method==='POST')return webhook(request,env);
   if(!path.startsWith('/api/'))return env.ASSETS.fetch(request);
-  const user=await verifyInitData(request.headers.get('x-telegram-init-data')||'',env.BOT_TOKEN);if(!user)return json({error:'Не удалось подтвердить Telegram-сессию. Открой приложение из бота.'},401);if(env.ADMIN_TELEGRAM_ID&&String(user.id)!==env.ADMIN_TELEGRAM_ID)return json({error:'Это личное приложение, доступ к нему не включён для этого профиля.'},403);
+  const user=await verifyInitData(request.headers.get('x-telegram-init-data')||'',env.BOT_TOKEN);if(!user)return json({error:'Не удалось подтвердить Telegram-сессию. Открой приложение из бота.'},401);
   await env.DB.batch([env.DB.prepare('INSERT INTO users(id,first_name) VALUES(?,?) ON CONFLICT(id) DO UPDATE SET first_name=excluded.first_name').bind(String(user.id),user.first_name||''),env.DB.prepare('INSERT INTO settings(user_id) VALUES(?) ON CONFLICT(user_id) DO NOTHING').bind(String(user.id))]);
   if(path==='/api/bootstrap'&&request.method==='GET'){
     await env.DB.prepare('INSERT INTO schedule_overrides(id,user_id,schedule) VALUES(?,?,?) ON CONFLICT(user_id) DO NOTHING').bind(crypto.randomUUID(),String(user.id),JSON.stringify(schedule)).run();
