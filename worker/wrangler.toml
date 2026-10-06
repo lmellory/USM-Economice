@@ -24,5 +24,6 @@ crons = ["* * * * *"]
 
 [vars]
 TZ = "Europe/Chisinau"
-TRANZY_VEHICLES_URL = "https://api.tranzy.ai/v1/opendata/vehicle"
+TRANZY_VEHICLES_URL = "https://api.tranzy.ai/v1/opendata/vehicles"
 TRANZY_REFRESH_MINUTES = "5"
+# TRANZY_AGENCY_ID = ""
