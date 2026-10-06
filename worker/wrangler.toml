@@ -3,6 +3,10 @@ main = "src/index.ts"
 compatibility_date = "2026-10-06"
 workers_dev = true
 
+[observability]
+enabled = true
+head_sampling_rate = 1
+
 [assets]
 directory = "../apps/web/dist"
 binding = "ASSETS"

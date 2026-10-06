@@ -102,4 +102,6 @@ node --env-file=.env.local scripts/set-webhook.mjs
 - **401 в Mini App:** открывай приложение через Telegram-бота, не обычной вкладкой браузера.
 - **403:** проверь `ADMIN_TELEGRAM_ID` среди переменных Worker.
 - **Бот не отвечает:** проверь webhook в Cloudflare Logs и `getWebhookInfo` Telegram; проверь совпадение webhook secret.
-- Просматривай Worker Logs в Cloudflare Dashboard, не записывай туда токен, адреса, Telegram `initData` или тексты ДЗ.
+- Для записи `console.error` и запросов явно включена Observability в `worker/wrangler.toml`. После следующего успешного деплоя открой Cloudflare Dashboard → **Workers & Pages** → **usm-life** → **Logs** → **Live** (в некоторых версиях панели раздел называется **Observability**). Запусти поток логов и повтори действие в Mini App.
+- Если пункта Logs/Observability нет вообще, это вопрос интерфейса или прав аккаунта, а не отсутствие обращений к Worker. Убедись, что выбрана именно запись Worker `usm-life`, а не домен/страница проекта; при необходимости владелец аккаунта должен выдать роль с доступом к Workers Logs.
+- Не записывай в логи токен, адреса, Telegram `initData` или тексты ДЗ.
