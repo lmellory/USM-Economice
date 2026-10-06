@@ -28,3 +28,7 @@ body.dark-theme{background:#171b18;color:#e7e9e4}
 .dark-theme .leave-row small{color:#ab9888}
 .dark-theme .route-pills span{background:#3b322a;border-color:#534438;color:#e1cbb8}
 
+
+.dark-theme .duration-chips button{background:#232b25;border-color:#3a443c;color:#a8b2a8}
+.dark-theme .duration-chips button.on{border-color:#5a7b60;background:#263629;color:#b2d4b8}
+.dark-theme .duration-chips button.clear{background:#2d2621;border-color:#4d3d33;color:#d8a685}

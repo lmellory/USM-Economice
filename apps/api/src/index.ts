@@ -20,8 +20,42 @@ const homeworkSchema=z.object({title:z.string().trim().min(1).max(200),subject:z
 app.post('/api/homework',async(req:any,rep)=>{const p=homeworkSchema.safeParse(req.body);if(!p.success)return rep.code(400).send({error:'Проверь название и поля задания.'});const d=p.data;const r=await pool.query('INSERT INTO homework(user_id,title,subject,due_at,due_date,note,completed,telegram_reminder) VALUES($1,$2,$3,$4,$5,$6,$7,$8) RETURNING *',[req.user.id,d.title,d.subject??null,d.dueAt??null,d.dueDate??null,d.note??null,d.completed??false,d.telegramReminder??false]);return r.rows[0];});
 app.put('/api/homework/:id',async(req:any,rep)=>{const p=homeworkSchema.partial().safeParse(req.body);if(!p.success)return rep.code(400).send({error:'Некорректные поля задания.'});const d=p.data;const names:Record<string,string>={title:'title',subject:'subject',dueAt:'due_at',dueDate:'due_date',note:'note',completed:'completed',telegramReminder:'telegram_reminder'};const entries=Object.entries(d);const vals:any[]=[req.user.id,req.params.id];const sets=entries.map(([k,v])=>{vals.push(v);return `${names[k]}=$${vals.length}`});if(!sets.length)return rep.code(400).send({error:'Нет изменений.'});const r=await pool.query(`UPDATE homework SET ${sets.join(',')},updated_at=now() WHERE user_id=$1 AND id=$2 RETURNING *`,vals);if(!r.rowCount)return rep.code(404).send({error:'Задание не найдено.'});return r.rows[0];});
 app.delete('/api/homework/:id',async(req:any,rep)=>{const r=await pool.query('DELETE FROM homework WHERE user_id=$1 AND id=$2',[req.user.id,req.params.id]);return {deleted:!!r.rowCount};});
-const settingsSchema=z.object({semesterStart:z.string().date().nullable().optional(),firstWeekParity:z.enum(['odd','even']).nullable().optional(),englishDuration:z.number().int().min(1).max(240).nullable().optional(),sleepHours:z.number().min(4).max(12).optional(),sleepLatency:z.number().int().min(0).max(120).optional(),washMinutes:z.number().int().min(0).max(180).optional(),breakfastMinutes:z.number().int().min(0).max(180).optional(),getReadyMinutes:z.number().int().min(0).max(180).optional(),travelBuffer:z.number().int().min(0).max(90).optional(),homeAddress:z.string().max(300).nullable().optional(),universityAddress:z.string().max(300).nullable().optional(),theme:z.enum(['light','dark']).optional(),remindersEnabled:z.boolean().optional(),reminderMinutes:z.number().int().min(0).max(10080).optional(),wakeReminder:z.boolean().optional(),sleepReminder:z.boolean().optional(),leaveReminder:z.boolean().optional()});
-app.put('/api/settings',async(req:any,rep)=>{const p=settingsSchema.safeParse(req.body);if(!p.success)return rep.code(400).send({error:'Некорректные настройки.'});const keys:Record<string,string>={semesterStart:'semester_start',firstWeekParity:'first_week_parity',englishDuration:'english_duration',sleepHours:'sleep_hours',sleepLatency:'sleep_latency',washMinutes:'wash_minutes',breakfastMinutes:'breakfast_minutes',getReadyMinutes:'get_ready_minutes',travelBuffer:'travel_buffer',homeAddress:'home_address',universityAddress:'university_address',theme:'theme',remindersEnabled:'reminders_enabled',reminderMinutes:'reminder_minutes',wakeReminder:'wake_reminder',sleepReminder:'sleep_reminder',leaveReminder:'leave_reminder'};const entries=Object.entries(p.data);if(!entries.length)return (await pool.query('SELECT * FROM settings WHERE user_id=$1',[req.user.id])).rows[0];const vals:any[]=[req.user.id];const sets=entries.map(([k,v])=>{vals.push(v);return `${keys[k]}=$${vals.length}`});return (await pool.query(`UPDATE settings SET ${sets.join(',')},updated_at=now() WHERE user_id=$1 RETURNING *`,vals)).rows[0];});
+const settingsSchema=z.object({
+  semesterStart:z.string().date().nullable().optional(),
+  semester_start:z.string().date().nullable().optional(),
+  firstWeekParity:z.enum(['odd','even']).nullable().optional(),
+  first_week_parity:z.enum(['odd','even']).nullable().optional(),
+  englishDuration:z.union([z.number().int().min(1).max(240),z.literal(0)]).nullable().optional(),
+  english_duration:z.union([z.number().int().min(1).max(240),z.literal(0)]).nullable().optional(),
+  sleepHours:z.number().min(0).max(24).optional(),
+  sleep_hours:z.number().min(0).max(24).optional(),
+  sleepLatency:z.number().int().min(0).max(120).optional(),
+  sleep_latency:z.number().int().min(0).max(120).optional(),
+  washMinutes:z.number().int().min(0).max(180).optional(),
+  wash_minutes:z.number().int().min(0).max(180).optional(),
+  breakfastMinutes:z.number().int().min(0).max(180).optional(),
+  breakfast_minutes:z.number().int().min(0).max(180).optional(),
+  getReadyMinutes:z.number().int().min(0).max(180).optional(),
+  get_ready_minutes:z.number().int().min(0).max(180).optional(),
+  travelBuffer:z.number().int().min(0).max(90).optional(),
+  travel_buffer:z.number().int().min(0).max(90).optional(),
+  homeAddress:z.string().max(300).nullable().optional(),
+  home_address:z.string().max(300).nullable().optional(),
+  universityAddress:z.string().max(300).nullable().optional(),
+  university_address:z.string().max(300).nullable().optional(),
+  theme:z.enum(['light','dark']).optional(),
+  remindersEnabled:z.boolean().optional(),
+  reminders_enabled:z.boolean().optional(),
+  reminderMinutes:z.number().int().min(0).max(10080).optional(),
+  reminder_minutes:z.number().int().min(0).max(10080).optional(),
+  wakeReminder:z.boolean().optional(),
+  wake_reminder:z.boolean().optional(),
+  sleepReminder:z.boolean().optional(),
+  sleep_reminder:z.boolean().optional(),
+  leaveReminder:z.boolean().optional(),
+  leave_reminder:z.boolean().optional()
+});
+app.put('/api/settings',async(req:any,rep)=>{const p=settingsSchema.safeParse(req.body);if(!p.success)return rep.code(400).send({error:p.error.issues[0]?.message||'Некорректные настройки.'});const keys:Record<string,string>={semesterStart:'semester_start',semester_start:'semester_start',firstWeekParity:'first_week_parity',first_week_parity:'first_week_parity',englishDuration:'english_duration',english_duration:'english_duration',sleepHours:'sleep_hours',sleep_hours:'sleep_hours',sleepLatency:'sleep_latency',sleep_latency:'sleep_latency',washMinutes:'wash_minutes',wash_minutes:'wash_minutes',breakfastMinutes:'breakfast_minutes',breakfast_minutes:'breakfast_minutes',getReadyMinutes:'get_ready_minutes',get_ready_minutes:'get_ready_minutes',travelBuffer:'travel_buffer',travel_buffer:'travel_buffer',homeAddress:'home_address',home_address:'home_address',universityAddress:'university_address',university_address:'university_address',theme:'theme',remindersEnabled:'reminders_enabled',reminders_enabled:'reminders_enabled',reminderMinutes:'reminder_minutes',reminder_minutes:'reminder_minutes',wakeReminder:'wake_reminder',wake_reminder:'wake_reminder',sleepReminder:'sleep_reminder',sleep_reminder:'sleep_reminder',leaveReminder:'leave_reminder',leave_reminder:'leave_reminder'};const entries:[string,any][]=[];for(const [k,v] of Object.entries(p.data)){const col=keys[k];if(!col)continue;let val=v;if(col==='english_duration'&&(val===0||val===''))val=null;entries.push([col,val]);}if(!entries.length)return (await pool.query('SELECT * FROM settings WHERE user_id=$1',[req.user.id])).rows[0];const vals:any[]=[req.user.id];const sets=entries.map(([col,v])=>{vals.push(v);return `${col}=${vals.length}`});return (await pool.query(`UPDATE settings SET ${sets.join(',')},updated_at=now() WHERE user_id=$1 RETURNING *`,vals)).rows[0];});
 app.get('/api/transit',async()=>currentTransit());
 app.post('/telegram/webhook',async(req:any,rep)=>{const secret=process.env.TELEGRAM_WEBHOOK_SECRET;if(process.env.NODE_ENV==='production'&&!secret)return rep.code(503).send({error:'Webhook secret is not configured'});if(secret&&req.headers['x-telegram-bot-api-secret-token']!==secret)return rep.code(403).send();const m=req.body?.message;if(m?.text==='/start'&&m.from?.id&&m.chat?.type==='private'&&String(m.chat.id)===String(m.from.id)){const url=process.env.MINI_APP_URL;const text=`Ваш Telegram ID: ${m.from.id}\n${url?'Открой расписание, задания и план утра по кнопке ниже.':'Бот подключён. Администратор ещё не указал адрес Mini App.'}`;const body:any={chat_id:m.chat.id,text};if(url)body.reply_markup={inline_keyboard:[[{text:'Открыть приложение',web_app:{url}}]]};if(process.env.BOT_TOKEN)await fetch(`https://api.telegram.org/bot${process.env.BOT_TOKEN}/sendMessage`,{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify(body)});}return {ok:true};});
 // Durable, idempotent homework notifications. Transient Telegram failures retry with bounded exponential backoff.
