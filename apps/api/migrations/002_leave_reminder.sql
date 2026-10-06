@@ -1,0 +1,2 @@
+ALTER TABLE settings ADD COLUMN IF NOT EXISTS leave_reminder BOOLEAN DEFAULT false;
+ALTER TABLE transit_state ADD COLUMN IF NOT EXISTS routes_summary JSONB;

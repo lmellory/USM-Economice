@@ -21,3 +21,10 @@ body.dark-theme{background:#171b18;color:#e7e9e4}
 .dark-theme .toast{background:#35443a}
 .dark-theme .theme-picker button{background:#292f2a;border-color:#3b433d;color:#c3c9c2}
 .dark-theme .theme-picker button.selected{background:#536956;border-color:#758a78;color:#fff}
+.dark-theme .live-badge{background:#3b322a;color:#c9a98e}
+.dark-theme .live-badge.on{background:#233527;color:#89c493}
+.dark-theme .journey-target{color:#d5cdc2}
+.dark-theme .leave-row{background:#3b322a;color:#debfa4}
+.dark-theme .leave-row small{color:#ab9888}
+.dark-theme .route-pills span{background:#3b322a;border-color:#534438;color:#e1cbb8}
+
