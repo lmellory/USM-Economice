@@ -66,7 +66,7 @@ Cloudflare сам устанавливает зависимости, выпол�
 
 ## 6. Проверь публикацию
 
-Открой `https://usm-life.<твой-поддомен>.workers.dev/health`. Должен появиться JSON с `"ok":true`. Открой основной URL: Mini App должен показывать интерфейс, но API работает только в Telegram с валидным `initData`.
+Открой `https://usm-life.<твой-поддомен>.workers.dev/health`. Должен появиться JSON с `"ok":true`. API, webhook и `/health` настроены на запуск Worker до SPA-резервного маршрута. Открой основной URL: Mini App должен показывать интерфейс, но API работает только в Telegram с валидным `initData`.
 
 ## 7. Подключи Telegram webhook
 
