@@ -8,4 +8,5 @@ node_modules/
 .env.local.*
 !.env.local.example
 demovideo/
+/USM/
 *.log
