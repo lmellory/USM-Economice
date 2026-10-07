@@ -129,6 +129,17 @@ export interface TrackedTrolleySummary {
   boardStopName?: string;
 }
 
+export interface LiveTrackedVehicle {
+  id: string;
+  label: string;
+  route_id: number;
+  route_short_name: string;
+  latitude: number;
+  longitude: number;
+  speed: number;
+  timestamp: string;
+}
+
 export interface ScheduleException {
   id: string;
   user_id: string;

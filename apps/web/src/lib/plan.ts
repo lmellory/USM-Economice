@@ -17,6 +17,7 @@ import {
   shortDays,
   TransitStop,
   TrackedTrolleySummary,
+  LiveTrackedVehicle,
   WeekParity,
 } from '@usm/shared';
 
@@ -31,6 +32,7 @@ export type {
   ScheduleException,
   TransitStop,
   TrackedTrolleySummary,
+  LiveTrackedVehicle,
   WeekParity,
 };
 export {

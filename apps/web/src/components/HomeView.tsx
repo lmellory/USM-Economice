@@ -30,9 +30,11 @@ import {
   DestinationType,
   RoutineResult,
   TrackedTrolleySummary,
+  LiveTrackedVehicle,
   shortDays,
 } from '../lib/plan.js';
 import { dateParts, fmtDate, min, TZ } from '../lib/time.js';
+import { TransitMiniMap } from './TransitMiniMap.js';
 
 interface HomeViewProps {
   selected: Date;
@@ -109,6 +111,7 @@ export function HomeView({
   const [commuteLive, setCommuteLive] = React.useState<{
     options: CommuteOptionResult[];
     trackedTrolleys?: TrackedTrolleySummary[];
+    liveVehicles?: LiveTrackedVehicle[];
     liveStatus?: any;
     updatedAt: number;
   } | null>(null);
@@ -126,6 +129,7 @@ export function HomeView({
       setCommuteLive({
         options: res.options || [],
         trackedTrolleys: res.trackedTrolleys || [],
+        liveVehicles: res.liveVehicles || [],
         liveStatus: res.liveStatus,
         updatedAt: Date.now(),
       });
@@ -481,6 +485,23 @@ export function HomeView({
                   </div>
                 </div>
               )}
+
+              {/* Interactive Real-Time Transit Mini-Map */}
+              <TransitMiniMap
+                vehicles={commuteLive?.liveVehicles || []}
+                boardStop={
+                  commuteLive?.options?.[0]?.legs?.[0]?.boardStopName
+                    ? {
+                        stop_id: 101,
+                        stop_name: commuteLive.options[0].legs[0].boardStopName,
+                        stop_lat: 46.9825,
+                        stop_lon: 28.865,
+                      }
+                    : undefined
+                }
+                theme={settings.theme || 'light'}
+                onRefresh={fetchCommute}
+              />
 
               {commuteLive?.options && commuteLive.options.length > 0 ? (
                 <div className={`commute-options-grid ${isSports ? 'single' : 'double'}`}>

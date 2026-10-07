@@ -409,3 +409,80 @@ body.pink-theme {
   color: #8c4155;
 }
 
+/* Stage 3: Transit Mini-Map Pink Overrides */
+.pink-theme .transit-minimap-wrapper {
+  background: #ffffff;
+  border-color: #f3d1da;
+  box-shadow: 0 4px 16px rgba(220, 100, 130, 0.08);
+}
+
+.pink-theme .map-filter-chip {
+  background: rgba(255, 248, 250, 0.94);
+  color: #5c3943;
+  border-color: #f3d1da;
+  box-shadow: 0 2px 6px rgba(220, 100, 130, 0.08);
+}
+
+.pink-theme .map-filter-chip:hover {
+  background: #ffffff;
+  color: #b54763;
+}
+
+.pink-theme .map-filter-chip.active {
+  background: #b54763;
+  color: #ffffff;
+  border-color: #b54763;
+}
+
+.pink-theme .map-hud-btn {
+  background: rgba(255, 248, 250, 0.94);
+  color: #5c3943;
+  border-color: #f3d1da;
+  box-shadow: 0 2px 6px rgba(220, 100, 130, 0.08);
+}
+
+.pink-theme .map-hud-btn:hover {
+  background: #ffffff;
+  color: #b54763;
+}
+
+.pink-theme .map-bottom-ribbon {
+  background: rgba(255, 248, 250, 0.95);
+  border-top-color: #fae2e8;
+  color: #633b46;
+}
+
+.pink-theme .ribbon-live-pulse {
+  background: #e11d48;
+  box-shadow: 0 0 6px #e11d48;
+}
+
+.pink-theme .ribbon-gps-status {
+  color: #b54763;
+}
+
+.pink-theme .map-trolley-popup .popup-body {
+  background: #fff8fa;
+}
+
+.pink-theme .map-trolley-popup .popup-row span {
+  color: #8c4155;
+}
+
+.pink-theme .map-trolley-popup .popup-row b {
+  color: #5c3943;
+}
+
+.pink-theme .map-popup-card {
+  background: #fff8fa;
+}
+
+.pink-theme .map-popup-card b {
+  color: #5c3943;
+}
+
+.pink-theme .map-popup-card small {
+  color: #8c4155;
+}
+
+

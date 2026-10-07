@@ -1,12 +1,14 @@
 import {
   calculateCommuteOptionsForDestination,
   summarizeTrackedTrolleys,
+  getLiveTrackedVehicles,
   CommuteOption,
   CommuteOptionResult,
   DestinationType,
   TransitStop,
   VehiclePosition,
   TrackedTrolleySummary,
+  LiveTrackedVehicle,
 } from '@usm/shared';
 import { json } from './homework.js';
 import { Env } from './types.js';
@@ -276,6 +278,7 @@ export async function evaluateUserCommute(
   destination: DestinationType;
   options: CommuteOptionResult[];
   trackedTrolleys: TrackedTrolleySummary[];
+  liveVehicles: LiveTrackedVehicle[];
   liveStatus: { available: boolean; source: string; vehicleCount: number; checkedAt: string };
 }> {
   const now = new Date();
@@ -331,11 +334,13 @@ export async function evaluateUserCommute(
   );
 
   const trackedTrolleys = summarizeTrackedTrolleys(options, calcContext);
+  const liveVehicles = getLiveTrackedVehicles(options, calcContext);
 
   return {
     destination,
     options: results,
     trackedTrolleys,
+    liveVehicles,
     liveStatus: {
       available: live.available,
       source: live.source,

@@ -9,6 +9,7 @@ import {
   TripStopTime,
   VehiclePosition,
   TrackedTrolleySummary,
+  LiveTrackedVehicle,
 } from './types.js';
 
 export function haversineDistanceMeters(
@@ -621,3 +622,73 @@ export function summarizeTrackedTrolleys(
 
   return results;
 }
+
+/**
+ * Extracts live vehicles matching the user's tracked routes for real-time map rendering.
+ */
+export function getLiveTrackedVehicles(
+  options: CommuteOption[],
+  context: CommuteCalculationContext
+): LiveTrackedVehicle[] {
+  const baseRoutes = ['2', '17', '4', '22', '10', '24'];
+
+  for (const opt of options) {
+    for (const leg of opt.legs || []) {
+      if (leg.route_short_name && !baseRoutes.includes(leg.route_short_name)) {
+        baseRoutes.push(leg.route_short_name);
+      }
+    }
+  }
+
+  const nowMs = context.nowMs;
+  const validVehicles = (context.vehicles || []).filter((v) => {
+    const ageMs = nowMs - Date.parse(v.timestamp);
+    return !isNaN(ageMs) && ageMs <= 180_000 && ageMs >= -60_000;
+  });
+
+  const liveList: LiveTrackedVehicle[] = [];
+
+  for (const v of validVehicles) {
+    let matchedName: string | undefined;
+
+    // Check canonical route id
+    if (v.route_id != null && CHISINAU_RTEC_ROUTE_ID_TO_NAME[v.route_id]) {
+      const name = CHISINAU_RTEC_ROUTE_ID_TO_NAME[v.route_id];
+      if (baseRoutes.includes(name)) {
+        matchedName = name;
+      }
+    }
+
+    if (!matchedName && context.candidateTrolleyRoutes) {
+      const found = context.candidateTrolleyRoutes.find((r) => r.route_id === v.route_id);
+      if (found && baseRoutes.includes(found.route_short_name)) {
+        matchedName = found.route_short_name;
+      }
+    }
+
+    if (!matchedName) {
+      for (const r of baseRoutes) {
+        if (v.route_id === Number(r) || v.label === r || v.label === `TR-${r}`) {
+          matchedName = r;
+          break;
+        }
+      }
+    }
+
+    if (matchedName) {
+      liveList.push({
+        id: v.id,
+        label: v.label,
+        route_id: v.route_id,
+        route_short_name: matchedName,
+        latitude: v.latitude,
+        longitude: v.longitude,
+        speed: v.speed ?? 0,
+        timestamp: v.timestamp,
+      });
+    }
+  }
+
+  return liveList;
+}
+
