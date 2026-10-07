@@ -76,12 +76,14 @@ export async function buildEveningDigest(
   const routine = calculateMorningRoutine(activeTomorrow, {
     sleep_hours: u?.sleep_hours ?? 8,
     sleep_latency: u?.sleep_latency ?? 15,
-    wash_minutes: u?.wash_minutes ?? 15,
-    breakfast_minutes: u?.breakfast_minutes ?? 20,
-    get_ready_minutes: u?.get_ready_minutes ?? 15,
+    wash_minutes: u?.wash_minutes ?? 20,
+    hair_dry_minutes: u?.hair_dry_minutes ?? 5,
+    breakfast_minutes: u?.breakfast_minutes ?? 30,
+    get_ready_minutes: u?.get_ready_minutes ?? 10,
     travel_buffer: u?.travel_buffer ?? 10,
     travel_minutes: u?.travel_minutes ?? 35,
     english_duration: u?.english_duration ?? 60,
+    target_bedtime: u?.target_bedtime ?? '00:15',
   });
 
   const first = activeTomorrow[0];
@@ -106,8 +108,12 @@ export async function buildEveningDigest(
     (targetCampus && targetCampus !== first
       ? `\n\n🏛 Первая очная пара:\n• ${targetCampus.start} — ${targetCampus.title}\n  📍 ${targetCampus.place}\n`
       : '\n') +
-    `\n⏰ Тайминг:\n• 🛏 Отбой: около ${routine?.bed ?? '23:00'} (сон ${u?.sleep_hours || 8} ч)\n` +
-    `• 🌅 Подъём: ${routine?.wake ?? '07:30'}\n` +
+    `\n⏰ Тайминг:\n• 🛏 Отбой: около ${routine?.bed ?? '00:00'} (сон ${u?.sleep_hours || 8} ч)\n` +
+    `• 🌅 Подъём: ${routine?.wake ?? '08:15'}\n` +
+    `• 🚿 Душ и сушка: ${Number(u?.wash_minutes ?? 20) + Number(u?.hair_dry_minutes ?? 5)} мин · 🍳 Завтрак: ${u?.breakfast_minutes ?? 30} мин\n` +
+    (routine?.freeMinutes && routine.freeMinutes > 0
+      ? `• ☕ Свободное время: ${routine.freeTimeFormatted} (можно спокойно отдохнуть)\n`
+      : '') +
     (routine?.leave
       ? `• 🚶 Выход: ${routine.leave} (дорога ~${travelTime} мин, запас ${travelBuffer} мин)\n`
       : '') +
@@ -228,12 +234,14 @@ export async function notificationTick(env: Env): Promise<void> {
       const routine = calculateMorningRoutine(activeDaily, {
         sleep_hours: u.sleep_hours,
         sleep_latency: u.sleep_latency,
-        wash_minutes: u.wash_minutes,
-        breakfast_minutes: u.breakfast_minutes,
-        get_ready_minutes: u.get_ready_minutes,
+        wash_minutes: u.wash_minutes ?? 20,
+        hair_dry_minutes: u.hair_dry_minutes ?? 5,
+        breakfast_minutes: u.breakfast_minutes ?? 30,
+        get_ready_minutes: u.get_ready_minutes ?? 10,
         travel_buffer: u.travel_buffer,
         travel_minutes: u.travel_minutes,
         english_duration: u.english_duration,
+        target_bedtime: u.target_bedtime ?? '00:15',
       });
 
       if (!routine) continue;

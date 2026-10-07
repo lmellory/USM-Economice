@@ -68,11 +68,11 @@ describe('calculateMorningRoutine', () => {
     expect(routine).not.toBeNull();
     if (!routine) return;
 
-    // Wake up: 08:00 (480) - (15 + 20 + 15 = 50) = 430 min = 07:10
-    expect(routine.wake).toBe('07:10');
+    // Wake up: 08:00 (480) - (15 wash + 5 hair_dry + 20 breakfast + 15 get_ready = 55 prep) = 425 min = 07:05
+    expect(routine.wake).toBe('07:05');
 
-    // Bedtime: 07:10 - 8 hours - 15 min = 22:55
-    expect(routine.bed).toBe('22:55');
+    // Bedtime: 07:05 - 8 hours - 15 min = 22:50
+    expect(routine.bed).toBe('22:50');
 
     // Online first is true
     expect(routine.onlineFirst).toBe(true);
@@ -82,7 +82,7 @@ describe('calculateMorningRoutine', () => {
     expect(routine.arrive).toBe('11:20');
   });
 
-  it('calculates routine for in-person first class', () => {
+  it('calculates routine for in-person first class with target bedtime and free time', () => {
     // Monday: 13:15 in-person Romanian
     const classes = [
       {
@@ -101,11 +101,69 @@ describe('calculateMorningRoutine', () => {
     // 13:15 is 795 min.
     // Campus arrival: 13:15 - 10 buffer = 13:05 (785 min)
     // Leave home: 13:05 - 35 travel = 12:30 (750 min)
-    // Wake up: 12:30 - 50 prep = 11:40 (700 min)
     expect(routine.leave).toBe('12:30');
     expect(routine.arrive).toBe('13:05');
-    expect(routine.wake).toBe('11:40');
-    expect(routine.bed).toBe('03:25');
+
+    // Natural wake up with target bedtime ~00:15 + 8 hours = 08:15!
+    expect(routine.wake).toBe('08:15');
+    expect(routine.bed).toBe('00:00');
+
+    // Free time until departure at 12:30:
+    // Ready at: 08:15 + 55 prep = 09:10
+    // Free time: 12:30 - 09:10 = 200 min = 3 ч 20 мин!
+    expect(routine.freeMinutes).toBe(200);
+    expect(routine.freeTimeFormatted).toBe('3 ч 20 мин');
+  });
+
+  it('calculates detailed timeline with custom shower, hair drying, breakfast and free time', () => {
+    const userSettings = {
+      sleep_hours: 8,
+      sleep_latency: 15,
+      wash_minutes: 20, // душ и помыть голову
+      hair_dry_minutes: 5, // высушить голову
+      breakfast_minutes: 30, // завтрак
+      get_ready_minutes: 10, // сборы
+      travel_buffer: 10,
+      travel_minutes: 35,
+      target_bedtime: '00:15', // сон в полночь – 00:30
+    };
+
+    const classes = [
+      {
+        day: 2,
+        start: '11:30',
+        end: '13:00',
+        title: 'Предпринимательское право',
+        place: '145 · Центральный корпус',
+      },
+    ];
+
+    const routine = calculateMorningRoutine(classes, userSettings);
+    expect(routine).not.toBeNull();
+    if (!routine) return;
+
+    // Bedtime: 00:00 (falling asleep at 00:15)
+    expect(routine.bed).toBe('00:00');
+    // Wake: 08:15
+    expect(routine.wake).toBe('08:15');
+
+    // Detailed steps:
+    expect(routine.wash).toBe('08:15');
+    expect(routine.washEnd).toBe('08:35'); // 20 min
+    expect(routine.hairDry).toBe('08:35');
+    expect(routine.hairDryEnd).toBe('08:40'); // 5 min
+    expect(routine.breakfast).toBe('08:40');
+    expect(routine.breakfastEnd).toBe('09:10'); // 30 min
+    expect(routine.getready).toBe('09:10');
+    expect(routine.getreadyEnd).toBe('09:20'); // 10 min
+    expect(routine.readyAt).toBe('09:20');
+
+    // Leave for campus 11:30: arrival 11:20, leave 10:45
+    expect(routine.leave).toBe('10:45');
+
+    // Free time: 10:45 - 09:20 = 85 minutes = 1 ч 25 мин
+    expect(routine.freeMinutes).toBe(85);
+    expect(routine.freeTimeFormatted).toBe('1 ч 25 мин');
   });
 
   it('handles tight schedule warning after online lesson', () => {

@@ -190,6 +190,15 @@ export const calculateWeekParity = (
   return isEvenShift ? firstWeekParity : firstWeekParity === 'odd' ? 'even' : 'odd';
 };
 
+export function formatFreeTime(minutes: number): string {
+  if (minutes <= 0) return '0 мин';
+  const h = Math.floor(minutes / 60);
+  const m = minutes % 60;
+  if (h > 0 && m > 0) return `${h} ч ${m} мин`;
+  if (h > 0) return `${h} ч`;
+  return `${m} мин`;
+}
+
 export const calculateMorningRoutine = (
   classes: ClassItem[],
   settings: RoutineSettings,
@@ -204,10 +213,12 @@ export const calculateMorningRoutine = (
 
   const travelDuration = Number(settings.travel_minutes || transitMinutes || 35);
   const travelBuffer = Number(settings.travel_buffer || 10);
-  const prep =
-    Number(settings.wash_minutes || 15) +
-    Number(settings.breakfast_minutes || 20) +
-    Number(settings.get_ready_minutes || 15);
+
+  const washTime = Number(settings.wash_minutes ?? 20);
+  const hairDryTime = Number(settings.hair_dry_minutes ?? 5);
+  const breakfastTime = Number(settings.breakfast_minutes ?? 30);
+  const getReadyTime = Number(settings.get_ready_minutes ?? 10);
+  const prep = washTime + hairDryTime + breakfastTime + getReadyTime;
 
   let wakeAt: number;
   let leaveAt: number | null = null;
@@ -218,7 +229,6 @@ export const calculateMorningRoutine = (
   const eventAt = min(first.start);
 
   if (first.online) {
-    wakeAt = eventAt - prep;
     const campus = sorted.find((c) => !c.online);
     if (campus) {
       const lessonEnd = first.end
@@ -236,16 +246,44 @@ export const calculateMorningRoutine = (
     const campusEvent = eventAt - travelBuffer;
     leaveAt = campusEvent - travelDuration;
     arriveAt = campusEvent;
-    wakeAt = leaveAt - prep;
   }
+
+  const deadlineForPrep = first.online ? eventAt : (leaveAt ?? eventAt);
+  const latestWakeAt = deadlineForPrep - prep;
 
   const sleepHours = Number(settings.sleep_hours || 8);
   const sleepLatency = Number(settings.sleep_latency || 15);
-  const bedtime = wakeAt - sleepHours * 60 - sleepLatency;
+
+  const targetBedStr = settings.target_bedtime || '00:15';
+  const targetBedMin = min(targetBedStr);
+  const naturalWakeMin = targetBedMin + Math.round(sleepHours * 60);
+
+  let bedtime: number;
+  let freeMinutes = 0;
+
+  if (naturalWakeMin <= latestWakeAt) {
+    wakeAt = naturalWakeMin;
+    bedtime = targetBedMin - sleepLatency;
+    const readyAtMin = wakeAt + prep;
+    freeMinutes = Math.max(0, deadlineForPrep - readyAtMin);
+  } else {
+    wakeAt = latestWakeAt;
+    bedtime = wakeAt - Math.round(sleepHours * 60) - sleepLatency;
+    freeMinutes = 0;
+    if (wakeAt < naturalWakeMin) {
+      const earlyWarn = `Раннее занятие (${first.start}): чтобы выспаться ${sleepHours} ч, отбой около ${hm(bedtime)}`;
+      warning = warning ? `${earlyWarn}. ${warning}` : earlyWarn;
+    }
+  }
 
   const washStart = wakeAt;
-  const breakfastStart = washStart + Number(settings.wash_minutes || 15);
-  const readyStart = breakfastStart + Number(settings.breakfast_minutes || 20);
+  const washEnd = washStart + washTime;
+  const hairDryStart = washEnd;
+  const hairDryEnd = hairDryStart + hairDryTime;
+  const breakfastStart = hairDryEnd;
+  const breakfastEnd = breakfastStart + breakfastTime;
+  const readyStart = breakfastEnd;
+  const readyEnd = readyStart + getReadyTime;
 
   return {
     first,
@@ -253,10 +291,18 @@ export const calculateMorningRoutine = (
     wake: hm(wakeAt),
     bed: hm(bedtime),
     wash: hm(washStart),
+    washEnd: hm(washEnd),
+    hairDry: hm(hairDryStart),
+    hairDryEnd: hm(hairDryEnd),
     breakfast: hm(breakfastStart),
+    breakfastEnd: hm(breakfastEnd),
     getready: hm(readyStart),
+    getreadyEnd: hm(readyEnd),
+    readyAt: hm(readyEnd),
     leave: leaveAt === null ? null : hm(leaveAt),
     arrive: arriveAt === null ? null : hm(arriveAt),
+    freeMinutes,
+    freeTimeFormatted: formatFreeTime(freeMinutes),
     commuteUncertain,
     warning,
     onlineFirst: Boolean(first.online),

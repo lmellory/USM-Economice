@@ -21,6 +21,10 @@ export const settingsColumns: Record<string, string> = {
   travel_buffer: 'travel_buffer',
   travelMinutes: 'travel_minutes',
   travel_minutes: 'travel_minutes',
+  targetBedtime: 'target_bedtime',
+  target_bedtime: 'target_bedtime',
+  hairDryMinutes: 'hair_dry_minutes',
+  hair_dry_minutes: 'hair_dry_minutes',
   homeAddress: 'home_address',
   home_address: 'home_address',
   universityAddress: 'university_address',
@@ -42,6 +46,11 @@ export function dbSettings(s: any): any {
   if (!s) return null;
   return {
     ...s,
+    wash_minutes: s.wash_minutes ?? 20,
+    hair_dry_minutes: s.hair_dry_minutes ?? 5,
+    breakfast_minutes: s.breakfast_minutes ?? 30,
+    get_ready_minutes: s.get_ready_minutes ?? 10,
+    target_bedtime: s.target_bedtime ?? '00:15',
     reminders_enabled: bool(s.reminders_enabled),
     wake_reminder: bool(s.wake_reminder),
     sleep_reminder: bool(s.sleep_reminder),
@@ -72,6 +81,11 @@ export function validatedSettings(body: any): Record<string, unknown> {
       if (val !== undefined && !['light', 'dark', 'pink'].includes(String(val))) {
         throw new Error('Некорректная тема.');
       }
+    } else if (col === 'target_bedtime') {
+      if (val === '' || val === null) val = null;
+      else if (!/^\d{2}:\d{2}$/.test(String(val))) {
+        throw new Error('Время отбоя должно быть в формате ЧЧ:ММ.');
+      }
     } else if (col === 'first_week_parity') {
       if (
         val !== undefined &&
@@ -101,6 +115,7 @@ export function validatedSettings(body: any): Record<string, unknown> {
         'sleep_hours',
         'sleep_latency',
         'wash_minutes',
+        'hair_dry_minutes',
         'breakfast_minutes',
         'get_ready_minutes',
         'travel_buffer',

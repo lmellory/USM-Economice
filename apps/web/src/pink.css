@@ -301,3 +301,26 @@ body.pink-theme {
   color: #c45b76;
   border-color: #c45b76;
 }
+
+.pink-theme .free-time-banner {
+  background: linear-gradient(135deg, #fff0f5 0%, #ffe4ec 100%);
+  border-color: #fbcfe8;
+}
+.pink-theme .free-time-badge-icon {
+  background: #fce7f3;
+  color: #db2777;
+}
+.pink-theme .free-time-header strong {
+  color: #9d174d;
+}
+.pink-theme .free-time-span {
+  background: #fce7f3;
+  color: #be185d;
+}
+.pink-theme .free-time-body p {
+  color: #9d174d;
+}
+.pink-theme .mini-plan-free {
+  background: #fdf2f8;
+  color: #db2777 !important;
+}

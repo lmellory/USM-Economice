@@ -198,15 +198,36 @@ export function SettingsView({ settings, transit, save, onBack }: SettingsViewPr
 
       <section className="setting-card">
         <h3>
-          <Moon size={17} /> Режим сна
+          <Moon size={17} /> Режим сна и утро
         </h3>
-        <p>Подъём рассчитывается по первому событию дня. Telegram не заменяет будильник.</p>
+        <p>
+          Настрой привычное время засыпания, душ, сушку головы, завтрак и сборы. Мы рассчитаем
+          подъём и свободное время до выхода.
+        </p>
+        <div style={{ marginBottom: 12 }}>
+          <span style={{ font: "600 12px/1 'Inter'", color: 'var(--muted)', display: 'block', marginBottom: 6 }}>
+            Привычное время сна (засыпание)
+          </span>
+          <div className="duration-chips">
+            {['23:30', '00:00', '00:15', '00:30', '01:00'].map((t) => (
+              <button
+                key={t}
+                type="button"
+                className={settings.target_bedtime === t || (!settings.target_bedtime && t === '00:15') ? 'on' : ''}
+                onClick={() => save({ target_bedtime: t, targetBedtime: t })}
+              >
+                {t}
+              </button>
+            ))}
+          </div>
+        </div>
         <div className="setting-grid">
           {field('sleep_hours', 'Цель сна', 'ч', '0.5')}
           {field('sleep_latency', 'На засыпание', 'мин')}
-          {field('wash_minutes', 'Умыться', 'мин')}
+          {field('wash_minutes', 'Душ и голова', 'мин')}
+          {field('hair_dry_minutes', 'Сушка головы', 'мин')}
           {field('breakfast_minutes', 'Завтрак', 'мин')}
-          {field('get_ready_minutes', 'Собраться', 'мин')}
+          {field('get_ready_minutes', 'Сборы', 'мин')}
           {field('travel_minutes', 'Время в дороге', 'мин')}
           {field('travel_buffer', 'Запас на дорогу', 'мин')}
         </div>

@@ -235,3 +235,26 @@ body.dark-theme {
   background: #3b2c15;
   color: #fbbf24;
 }
+
+.dark-theme .free-time-banner {
+  background: #172a20;
+  border-color: #274735;
+}
+.dark-theme .free-time-badge-icon {
+  background: #1f3b2d;
+  color: #34d399;
+}
+.dark-theme .free-time-header strong {
+  color: #6ee7b7;
+}
+.dark-theme .free-time-span {
+  background: #1f3b2d;
+  color: #6ee7b7;
+}
+.dark-theme .free-time-body p {
+  color: #a7f3d0;
+}
+.dark-theme .mini-plan-free {
+  background: #172a20;
+  color: #34d399 !important;
+}

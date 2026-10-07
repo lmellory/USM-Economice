@@ -38,11 +38,13 @@ export interface RoutineSettings {
   sleep_hours: number;
   sleep_latency: number;
   wash_minutes: number;
+  hair_dry_minutes?: number;
   breakfast_minutes: number;
   get_ready_minutes: number;
   travel_buffer: number;
   travel_minutes: number;
   english_duration?: number | null;
+  target_bedtime?: string | null;
 }
 
 export interface RoutineResult {
@@ -51,10 +53,18 @@ export interface RoutineResult {
   wake: string;
   bed: string;
   wash: string;
+  washEnd?: string;
+  hairDry?: string;
+  hairDryEnd?: string;
   breakfast: string;
+  breakfastEnd?: string;
   getready: string;
+  getreadyEnd?: string;
+  readyAt: string;
   leave: string | null;
   arrive: string | null;
+  freeMinutes: number;
+  freeTimeFormatted: string;
   commuteUncertain: boolean;
   warning?: string;
   onlineFirst: boolean;

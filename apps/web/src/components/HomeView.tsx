@@ -10,11 +10,16 @@ import {
   CircleAlert,
   Clock,
   Clock3,
+  Coffee,
+  Droplets,
   Footprints,
   MapPin,
   Moon,
   RotateCcw,
+  Sparkles,
   Sunrise,
+  Utensils,
+  Wind,
 } from 'lucide-react';
 import { ClassItem, RoutineResult, shortDays } from '../lib/plan.js';
 import { dateParts, fmtDate, min, TZ } from '../lib/time.js';
@@ -218,6 +223,23 @@ export function HomeView({
         </section>
       )}
 
+      {routine && routine.freeMinutes > 0 && (
+        <section className="free-time-banner">
+          <div className="free-time-badge-icon">
+            <Coffee size={18} />
+          </div>
+          <div className="free-time-body">
+            <div className="free-time-header">
+              <strong>Свободное время: {routine.freeTimeFormatted}</strong>
+              <span className="free-time-span">до {routine.leave ? `выхода в ${routine.leave}` : `пары в ${routine.first.start}`}</span>
+            </div>
+            <p>
+              После душа, завтрака и сборов можно спокойно чиллить и ничего не делать! ✨
+            </p>
+          </div>
+        </section>
+      )}
+
       <section className="classes">
         {daySchedule.classes.length ? (
           daySchedule.classes.map((c, i) => {
@@ -398,18 +420,26 @@ export function HomeView({
             <>
               <b>Подъём в {routine.wake}</b>
               <p>
-                Лечь в {routine.bed} · сон {settings.sleep_hours} ч
+                Сон: отбой в {routine.bed} · цель {settings.sleep_hours || 8} ч
               </p>
               <div className="mini-plan">
                 <span>
-                  <Sunrise size={13} /> Умыться {routine.wash}
+                  <Droplets size={13} /> Душ и голова {routine.wash}–{routine.washEnd} ({settings.wash_minutes || 20} мин)
                 </span>
                 <span>
-                  <Clock3 size={13} /> Позавтракать {routine.breakfast}
+                  <Wind size={13} /> Сушка волос {routine.hairDry}–{routine.hairDryEnd} ({settings.hair_dry_minutes || 5} мин)
                 </span>
                 <span>
-                  <Clock3 size={13} /> Собраться {routine.getready}
+                  <Utensils size={13} /> Завтрак {routine.breakfast}–{routine.breakfastEnd} ({settings.breakfast_minutes || 30} мин)
                 </span>
+                <span>
+                  <Clock3 size={13} /> Сборы {routine.getready}–{routine.getreadyEnd} ({settings.get_ready_minutes || 10} мин)
+                </span>
+                {routine.freeMinutes > 0 && (
+                  <span className="mini-plan-free">
+                    <Coffee size={13} /> Свободно {routine.readyAt}–{routine.leave || routine.first.start} ({routine.freeTimeFormatted})
+                  </span>
+                )}
                 {routine.leave && (
                   <span>
                     <ArrowUpRight size={13} /> Выйти {routine.leave}
@@ -421,7 +451,7 @@ export function HomeView({
                   </span>
                 )}
               </div>
-              {routine.commuteUncertain && (
+              {routine.warning && (
                 <small className="warn-text">
                   <CircleAlert size={12} /> {routine.warning}
                 </small>

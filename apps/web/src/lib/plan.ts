@@ -5,6 +5,7 @@ import {
   calculateWeekParity,
   ClassItem,
   dayNames,
+  formatFreeTime,
   min,
   RoutineResult,
   RoutineSettings,
@@ -20,6 +21,7 @@ export {
   calculateMorningRoutine,
   calculateWeekParity,
   dayNames,
+  formatFreeTime,
   shortDays,
 };
 
