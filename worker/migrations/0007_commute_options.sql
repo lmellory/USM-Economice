@@ -10,7 +10,8 @@ CREATE TABLE IF NOT EXISTS commute_options (
   is_configured INTEGER NOT NULL DEFAULT 0,
   walk_before_minutes INTEGER NOT NULL DEFAULT 7,
   walk_after_minutes INTEGER NOT NULL DEFAULT 5,
-  legs TEXT NOT NULL
+  legs TEXT NOT NULL,
+  updated_at TEXT
 );
 
 CREATE INDEX IF NOT EXISTS idx_commute_options_user ON commute_options(user_id, destination);

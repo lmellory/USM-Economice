@@ -361,45 +361,53 @@ export async function handleTransitRoutes(
       return json({ error: 'Некорректный JSON' }, 400);
     }
 
-    const walkBefore = Number.isInteger(body.walk_before_minutes)
-      ? body.walk_before_minutes
-      : 7;
-    const walkAfter = Number.isInteger(body.walk_after_minutes)
-      ? body.walk_after_minutes
-      : 5;
-    const legsJson = JSON.stringify(body.legs || []);
-    const isConfigured = body.is_configured ? 1 : 1; // Marking confirmed
+    try {
+      const walkBefore = Number.isInteger(body.walk_before_minutes)
+        ? body.walk_before_minutes
+        : 7;
+      const walkAfter = Number.isInteger(body.walk_after_minutes)
+        ? body.walk_after_minutes
+        : 5;
+      const legsJson = JSON.stringify(body.legs || []);
+      const isConfigured = body.is_configured ? 1 : 1; // Marking confirmed
 
-    await env.DB.prepare(
-      'UPDATE commute_options SET walk_before_minutes=?, walk_after_minutes=?, legs=?, is_configured=?, updated_at=CURRENT_TIMESTAMP WHERE id=? AND user_id=?'
-    )
-      .bind(walkBefore, walkAfter, legsJson, isConfigured, optionId, userId)
-      .run();
+      await env.DB.prepare(
+        'UPDATE commute_options SET walk_before_minutes=?, walk_after_minutes=?, legs=?, is_configured=?, updated_at=CURRENT_TIMESTAMP WHERE id=?'
+      )
+        .bind(walkBefore, walkAfter, legsJson, isConfigured, optionId)
+        .run();
 
-    const updated = await env.DB.prepare(
-      'SELECT * FROM commute_options WHERE id=? AND user_id=?'
-    )
-      .bind(optionId, userId)
-      .first<any>();
+      const updated = await env.DB.prepare(
+        'SELECT * FROM commute_options WHERE id=?'
+      )
+        .bind(optionId)
+        .first<any>();
 
-    return json({
-      success: true,
-      option: updated
-        ? {
-            ...updated,
-            is_configured: Boolean(updated.is_configured),
-            legs: JSON.parse(updated.legs || '[]'),
-          }
-        : null,
-    });
+      return json({
+        success: true,
+        option: updated
+          ? {
+              ...updated,
+              is_configured: Boolean(updated.is_configured),
+              legs: JSON.parse(updated.legs || '[]'),
+            }
+          : null,
+      });
+    } catch (err: any) {
+      return json({ error: err instanceof Error ? err.message : 'Ошибка сохранения маршрута.' }, 400);
+    }
   }
 
   // GET /api/transit/commute?destination=university|sports&time=09:45
   if (subpath === '/commute' && request.method === 'GET') {
-    const dest = (url.searchParams.get('destination') || 'university') as DestinationType;
-    const time = url.searchParams.get('time') || null;
-    const evaluated = await evaluateUserCommute(env, userId, dest, time);
-    return json(evaluated);
+    try {
+      const dest = (url.searchParams.get('destination') || 'university') as DestinationType;
+      const time = url.searchParams.get('time') || null;
+      const evaluated = await evaluateUserCommute(env, userId, dest, time);
+      return json(evaluated);
+    } catch (err: any) {
+      return json({ error: err instanceof Error ? err.message : 'Ошибка оценки транспорта.' }, 400);
+    }
   }
 
   return json({ error: 'Маршрут не найден.' }, 404);
