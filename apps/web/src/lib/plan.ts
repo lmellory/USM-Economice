@@ -4,17 +4,33 @@ import {
   calculateMorningRoutine,
   calculateWeekParity,
   ClassItem,
+  CommuteLeg,
+  CommuteOption,
+  CommuteOptionResult,
   dayNames,
+  DestinationType,
   formatFreeTime,
   min,
   RoutineResult,
   RoutineSettings,
   ScheduleException,
   shortDays,
+  TransitStop,
   WeekParity,
 } from '@usm/shared';
 
-export type { ClassItem, RoutineResult, RoutineSettings, ScheduleException, WeekParity };
+export type {
+  ClassItem,
+  CommuteLeg,
+  CommuteOption,
+  CommuteOptionResult,
+  DestinationType,
+  RoutineResult,
+  RoutineSettings,
+  ScheduleException,
+  TransitStop,
+  WeekParity,
+};
 export {
   applyScheduleExceptions,
   baseSchedule,

@@ -9,6 +9,7 @@ import {
   toChisinauDate,
 } from '@usm/shared';
 import { mapClassRow, mapExceptionRow } from './classes.js';
+import { evaluateUserCommute } from './commute.js';
 import { Env } from './types.js';
 
 export async function telegram(env: Env, method: string, body: unknown): Promise<any> {
@@ -231,22 +232,53 @@ export async function notificationTick(env: Env): Promise<void> {
       const activeDaily = daily.filter((c) => !c.isCancelled);
       if (!activeDaily.length) continue;
 
-      const routine = calculateMorningRoutine(activeDaily, {
-        sleep_hours: u.sleep_hours,
-        sleep_latency: u.sleep_latency,
-        wash_minutes: u.wash_minutes ?? 20,
-        hair_dry_minutes: u.hair_dry_minutes ?? 5,
-        breakfast_minutes: u.breakfast_minutes ?? 30,
-        get_ready_minutes: u.get_ready_minutes ?? 10,
-        travel_buffer: u.travel_buffer,
-        travel_minutes: u.travel_minutes,
-        english_duration: u.english_duration,
-        target_bedtime: u.target_bedtime ?? '00:15',
-      });
+      const targetCampus = activeDaily[0].online ? activeDaily.find((c) => !c.online) : activeDaily[0];
+
+      let actualCommuteMinutes = Number(u.travel_minutes || 35);
+      let vehicleNote = '';
+
+      if (targetCampus) {
+        const dest = (targetCampus.destination ||
+          (targetCampus.place?.includes('Ismail') || targetCampus.title?.includes('физ')
+            ? 'sports'
+            : 'university')) as 'university' | 'sports';
+        try {
+          const evalRes = await evaluateUserCommute(env, u.user_id, dest, targetCampus.start);
+          const best = evalRes.options.find((o) => o.isRecommended) || evalRes.options[0];
+          if (best && best.isConfigured) {
+            actualCommuteMinutes = best.totalDurationMinutes;
+            const leg0 = best.legs[0];
+            if (leg0?.firstVehicleEtaMinutes != null) {
+              if (dest === 'sports') {
+                vehicleNote = `17-й через ${leg0.firstVehicleEtaMinutes} мин`;
+              } else {
+                vehicleNote = `Ближайший: ${leg0.chosenRouteName} через ${leg0.firstVehicleEtaMinutes} мин`;
+              }
+            }
+          }
+        } catch {
+          // fallback to user setting
+        }
+      }
+
+      const routine = calculateMorningRoutine(
+        activeDaily,
+        {
+          sleep_hours: u.sleep_hours,
+          sleep_latency: u.sleep_latency,
+          wash_minutes: u.wash_minutes ?? 20,
+          hair_dry_minutes: u.hair_dry_minutes ?? 5,
+          breakfast_minutes: u.breakfast_minutes ?? 30,
+          get_ready_minutes: u.get_ready_minutes ?? 10,
+          travel_buffer: u.travel_buffer,
+          travel_minutes: actualCommuteMinutes,
+          english_duration: u.english_duration,
+          target_bedtime: u.target_bedtime ?? '00:15',
+        },
+        actualCommuteMinutes
+      );
 
       if (!routine) continue;
-
-      const targetCampus = activeDaily[0].online ? activeDaily.find((c) => !c.online) : activeDaily[0];
 
       const triggers = [
         ['wake', Boolean(u.wake_reminder), routine.wakeMin],
@@ -262,7 +294,7 @@ export async function notificationTick(env: Env): Promise<void> {
         const timeStr = `${String(Math.floor((((minute % 1440) + 1440) % 1440) / 60)).padStart(2, '0')}-${String((((minute % 1440) + 1440) % 1440) % 60).padStart(2, '0')}`;
         const key =
           kind === 'leave' && targetCampus
-            ? `leave:${date}:${timeStr}:${encodeURIComponent(targetCampus.title)}:${encodeURIComponent(targetCampus.place || '')}:${targetCampus.start}:${Number(u.travel_minutes || 35)}:${Number(u.travel_buffer || 10)}`
+            ? `leave:${date}:${timeStr}:${encodeURIComponent(targetCampus.title)}:${encodeURIComponent(targetCampus.place || '')}:${targetCampus.start}:${actualCommuteMinutes}:${Number(u.travel_buffer || 10)}:${encodeURIComponent(vehicleNote)}`
             : `${kind}:${date}:${timeStr}`;
 
         await env.DB.prepare(
@@ -324,9 +356,13 @@ export async function notificationTick(env: Env): Promise<void> {
       const title = decodeURIComponent(pieces[3] || 'Занятие');
       const place = decodeURIComponent(pieces[4] || '');
       const start = pieces[5] || '';
+      const travelMins = pieces[6] || '35';
+      const travelBuffer = pieces[7] || '10';
+      const vehInfo = pieces[8] ? decodeURIComponent(pieces[8]) : '';
       message =
         `🚶 Пора собираться и выходить! В ${start} — ${title}${place ? ` (${place})` : ''}.\n` +
-        `Расчётное время выхода: ${pieces[2].replace('-', ':')}. Дорога (~${pieces[6] || '35'} мин) и запас времени (${pieces[7] || '10'} мин) учтены.`;
+        `Расчётное время выхода: ${pieces[2].replace('-', ':')}. Дорога (~${travelMins} мин) и запас времени (${travelBuffer} мин) учтены.` +
+        (vehInfo ? `\n🚌 ${vehInfo}` : '');
     } else {
       continue;
     }

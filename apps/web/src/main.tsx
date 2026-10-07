@@ -12,6 +12,7 @@ import {
   calculateMorningRoutine,
   calculateWeekParity,
   ClassItem,
+  CommuteOption,
   dayNames,
   getDaySchedule,
   ScheduleException,
@@ -19,6 +20,7 @@ import {
 import { dateParts, dateShift, localNoon, TZ } from './lib/time.js';
 
 import { ClassModal } from './components/ClassModal.js';
+import { CommuteSettingsModal } from './components/CommuteSettingsModal.js';
 import { ExceptionModal } from './components/ExceptionModal.js';
 import { HomeView } from './components/HomeView.js';
 import { HomeworkModal } from './components/HomeworkModal.js';
@@ -68,6 +70,8 @@ export function App() {
     estimateMinutes: 35,
     note: 'Загрузка…',
   });
+  const [commuteOptions, setCommuteOptions] = useState<CommuteOption[]>([]);
+  const [commuteModal, setCommuteModal] = useState(false);
   const [modal, setModal] = useState(false);
   const [editing, setEditing] = useState<any>(null);
   const [classModal, setClassModal] = useState(false);
@@ -100,6 +104,7 @@ export function App() {
         setSettings(data.settings);
         setSchedule(data.classes || data.schedule || baseSchedule);
         setExceptions(data.exceptions || []);
+        setCommuteOptions(data.commuteOptions || []);
         setHw(
           data.homework.map((x: any) => ({
             ...x,
@@ -337,6 +342,18 @@ export function App() {
     vibrate();
   };
 
+  const saveCommuteOption = async (optionId: string, payload: Partial<CommuteOption>) => {
+    const res = await request(`/api/transit/options/${optionId}`, {
+      method: 'PUT',
+      body: JSON.stringify(payload),
+    });
+    if (res.option) {
+      setCommuteOptions((prev) =>
+        prev.map((o) => (o.id === optionId ? { ...o, ...res.option } : o))
+      );
+    }
+  };
+
   return (
     <main className="app">
       <header className="top">
@@ -362,6 +379,7 @@ export function App() {
           transit={transit}
           save={saveSettings}
           onBack={() => navigate('home')}
+          onOpenCommuteSettings={() => setCommuteModal(true)}
         />
       ) : view === 'schedule' ? (
         <ScheduleView
@@ -405,6 +423,9 @@ export function App() {
           vibrate={vibrate}
           onOpenExceptionModal={openExceptionModal}
           onDeleteException={deleteException}
+          commuteOptions={commuteOptions}
+          onOpenCommuteSettings={() => setCommuteModal(true)}
+          request={request}
         />
       )}
 
@@ -486,6 +507,15 @@ export function App() {
           }}
           onSave={saveException}
           onDelete={deleteException}
+        />
+      )}
+
+      {commuteModal && (
+        <CommuteSettingsModal
+          options={commuteOptions}
+          onClose={() => setCommuteModal(false)}
+          onSaveOption={saveCommuteOption}
+          request={request}
         />
       )}
 

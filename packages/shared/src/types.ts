@@ -13,12 +13,100 @@ export interface ClassItem {
   online?: boolean;
   durationUnknown?: boolean;
   duration_unknown?: boolean;
+  destination?: 'university' | 'sports';
   position?: number;
   // Dynamic fields after applying exception:
   isCancelled?: boolean;
   isMoved?: boolean;
   exceptionId?: string;
   exceptionNote?: string | null;
+}
+
+export type DestinationType = 'university' | 'sports';
+export type CommuteLegMode = 'fixed_route' | 'any_trolleybus';
+export type EstimateSource = 'live' | 'schedule' | 'rough';
+
+export interface VehiclePosition {
+  id: string;
+  label: string;
+  route_id: number;
+  trip_id?: string;
+  latitude: number;
+  longitude: number;
+  speed?: number;
+  timestamp: string;
+  vehicle_type?: number; // 11 = Trolleybus, 3 = Bus
+}
+
+export interface TransitStop {
+  stop_id: number;
+  stop_name: string;
+  stop_desc?: string;
+  stop_lat: number;
+  stop_lon: number;
+}
+
+export interface TripStopTime {
+  trip_id: string;
+  stop_id: number;
+  stop_sequence: number;
+  arrival_time: string; // "HH:MM:SS" or "HH:MM"
+  departure_time?: string;
+}
+
+export interface CommuteLeg {
+  mode: CommuteLegMode;
+  route_id?: number | null;
+  route_short_name?: string | null;
+  board_stop_id: number;
+  board_stop_name: string;
+  alight_stop_id: number;
+  alight_stop_name: string;
+}
+
+export interface CommuteOption {
+  id: string;
+  user_id?: string;
+  destination: DestinationType;
+  name: string;
+  position: number;
+  enabled: boolean;
+  is_configured: boolean;
+  walk_before_minutes: number;
+  walk_after_minutes: number;
+  legs: CommuteLeg[];
+}
+
+export interface CommuteLegResult {
+  legIndex: number;
+  mode: CommuteLegMode;
+  chosenRouteName: string;
+  boardStopName: string;
+  alightStopName: string;
+  waitingMinutes: number;
+  travelMinutes: number;
+  firstVehicleEtaMinutes?: number;
+  vehicleLabel?: string;
+  source: EstimateSource;
+}
+
+export interface CommuteOptionResult {
+  id: string;
+  name: string;
+  destination: DestinationType;
+  isConfigured: boolean;
+  totalDurationMinutes: number;
+  walkBeforeMinutes: number;
+  walkAfterMinutes: number;
+  totalWaitMinutes: number;
+  totalRideMinutes: number;
+  leaveInMinutes: number;
+  arrivalEstimated: string; // "HH:MM"
+  source: EstimateSource;
+  sourceLabel: string; // "по GPS" | "по расписанию" | "примерно"
+  summaryNote?: string;
+  legs: CommuteLegResult[];
+  isRecommended?: boolean;
 }
 
 export interface ScheduleException {

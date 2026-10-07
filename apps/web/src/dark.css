@@ -258,3 +258,57 @@ body.dark-theme {
   background: #172a20;
   color: #34d399 !important;
 }
+
+.dark-theme .commute-card {
+  background: #222824;
+  border-color: #353d37;
+}
+.dark-theme .commute-card.recommended {
+  border-color: #758a78;
+  background: linear-gradient(180deg, rgba(117, 138, 120, 0.08) 0%, #222824 100%);
+}
+.dark-theme .commute-card.unconfigured {
+  background: #1c221e;
+  border-color: #3b433d;
+}
+.dark-theme .commute-card-head b,
+.dark-theme .metric-value,
+.dark-theme .leg-header b,
+.dark-theme .stop-select-btn,
+.dark-theme .search-box-head input,
+.dark-theme .stop-item-btn b {
+  color: #e7e9e4;
+}
+.dark-theme .leg-card {
+  background: #1a201c;
+  border-color: #353d37;
+}
+.dark-theme .stop-select-btn,
+.dark-theme .stop-search-box {
+  background: #252b27;
+  border-color: #3e4740;
+}
+.dark-theme .commute-times-row input {
+  background: #222824;
+  border-color: #3e4740;
+  color: #e7e9e4;
+}
+.dark-theme .stop-item-btn:hover {
+  background: #2d352f;
+}
+.dark-theme .rec-badge {
+  background: #758a78;
+  color: #171b18;
+}
+.dark-theme .source-pill.live {
+  background: #1c3524;
+  color: #6ee7b7;
+}
+.dark-theme .source-pill.schedule {
+  background: #1a2c3d;
+  color: #7dd3fc;
+}
+.dark-theme .source-pill.rough {
+  background: #3b2c15;
+  color: #fbbf24;
+}

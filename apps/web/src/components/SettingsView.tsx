@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import {
   Bell,
+  Bus,
   CalendarDays,
   ChevronLeft,
   CircleAlert,
@@ -16,9 +17,16 @@ interface SettingsViewProps {
   transit: any;
   save: (patch: any) => Promise<void>;
   onBack: () => void;
+  onOpenCommuteSettings?: () => void;
 }
 
-export function SettingsView({ settings, transit, save, onBack }: SettingsViewProps) {
+export function SettingsView({
+  settings,
+  transit,
+  save,
+  onBack,
+  onOpenCommuteSettings,
+}: SettingsViewProps) {
   const [dur, setDur] = useState<string>(
     settings.english_duration != null ? String(settings.english_duration) : ''
   );
@@ -185,7 +193,7 @@ export function SettingsView({ settings, transit, save, onBack }: SettingsViewPr
         <div className="notice">
           <CircleAlert size={15} />
           {transit.available
-            ? `Tranzy отвечает: получено ${transit.liveVehicleCount ?? 0} позиций. Прибытие, маршрут и пересадки не подтверждены.`
+            ? `Tranzy отвечает: получено ${transit.liveVehicleCount ?? 0} позиций RTEC/PUA в реальном времени.`
             : `${transit.note || 'Tranzy пока недоступен.'} Последняя проверка: ${
                 transit.checkedAt
                   ? new Date(transit.checkedAt).toLocaleString('ru-RU', {
@@ -194,6 +202,27 @@ export function SettingsView({ settings, transit, save, onBack }: SettingsViewPr
                   : 'нет данных'
               }.`}
         </div>
+        {onOpenCommuteSettings && (
+          <div style={{ marginTop: 12 }}>
+            <button
+              type="button"
+              className="btn-primary"
+              style={{
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: 8,
+                width: '100%',
+                justifyContent: 'center',
+                padding: '10px 14px',
+                fontSize: 13,
+                fontWeight: 600,
+              }}
+              onClick={onOpenCommuteSettings}
+            >
+              <Bus size={15} /> Настроить маршруты и остановки дороги
+            </button>
+          </div>
+        )}
       </section>
 
       <section className="setting-card">

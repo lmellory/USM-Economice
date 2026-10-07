@@ -324,3 +324,48 @@ body.pink-theme {
   background: #fdf2f8;
   color: #db2777 !important;
 }
+
+.pink-theme .commute-card {
+  background: #ffffff;
+  border-color: #f3d1da;
+}
+.pink-theme .commute-card.recommended {
+  border-color: #d86985;
+  background: linear-gradient(180deg, #fff5f8 0%, #ffffff 100%);
+  box-shadow: 0 2px 10px rgba(216, 105, 133, 0.15);
+}
+.pink-theme .commute-card.unconfigured {
+  background: #faf3f5;
+  border-color: #eed0d8;
+}
+.pink-theme .commute-card-head b,
+.pink-theme .leg-header b,
+.pink-theme .stop-select-btn,
+.pink-theme .stop-item-btn b {
+  color: #5c3943;
+}
+.pink-theme .rec-badge {
+  background: #d86985;
+  color: #ffffff;
+}
+.pink-theme .leg-card {
+  background: #fdf5f7;
+  border-color: #f2d7df;
+}
+.pink-theme .leg-mode-tag {
+  color: #b54763;
+  background: #fae4eb;
+}
+.pink-theme .stop-select-btn {
+  background: #ffffff;
+  border-color: #eed3db;
+}
+.pink-theme .stop-search-box {
+  border-color: #d86985;
+}
+.pink-theme .stop-item-btn:hover {
+  background: #faeaf0;
+}
+.pink-theme .refresh-action-btn {
+  color: #b54763;
+}

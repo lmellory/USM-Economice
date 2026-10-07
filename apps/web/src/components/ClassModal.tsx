@@ -23,6 +23,12 @@ export function ClassModal({ item, initialDay = 1, onClose, onSave, onDelete }: 
   const [parity, setParity] = useState<WeekParity | 'all'>(item?.parity || 'all');
   const [online, setOnline] = useState(Boolean(item?.online));
   const [customKind, setCustomKind] = useState(Boolean(item?.kind && !KIND_PRESETS.includes(item.kind)));
+  const [destination, setDestination] = useState<'university' | 'sports'>(
+    item?.destination ||
+      (item?.place?.includes('Ismail') || item?.title?.includes('физ') || item?.title?.includes('спорт')
+        ? 'sports'
+        : 'university')
+  );
   const [error, setError] = useState('');
 
   const handleSave = () => {
@@ -49,6 +55,7 @@ export function ClassModal({ item, initialDay = 1, onClose, onSave, onDelete }: 
       place: online ? 'Дистанционно (дома)' : place.trim(),
       parity: parity === 'all' ? undefined : parity,
       online,
+      destination: online ? 'university' : destination,
     });
   };
 
@@ -167,15 +174,37 @@ export function ClassModal({ item, initialDay = 1, onClose, onSave, onDelete }: 
         </div>
 
         {!online && (
-          <label>
-            Аудитория / Корпус
-            <input
-              value={place}
-              onChange={(e) => setPlace(e.target.value)}
-              placeholder="Например, 145 · Центральный корпус"
-              maxLength={100}
-            />
-          </label>
+          <>
+            <label>
+              Аудитория / Корпус
+              <input
+                value={place}
+                onChange={(e) => setPlace(e.target.value)}
+                placeholder="Например, 145 · Центральный корпус"
+                maxLength={100}
+              />
+            </label>
+
+            <label>
+              Точка назначения (для расчёта дороги)
+              <div className="parity-segmented">
+                <button
+                  type="button"
+                  className={destination === 'university' ? 'active' : ''}
+                  onClick={() => setDestination('university')}
+                >
+                  Университет (USM)
+                </button>
+                <button
+                  type="button"
+                  className={destination === 'sports' ? 'active' : ''}
+                  onClick={() => setDestination('sports')}
+                >
+                  Спорткомплекс
+                </button>
+              </div>
+            </label>
+          </>
         )}
 
         <label>

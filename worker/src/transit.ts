@@ -87,26 +87,15 @@ export async function transit(env: Env): Promise<TransitState> {
 
     const data: any = await r.json();
     const list = Array.isArray(data) ? data : (data.data ?? data.vehicles ?? []);
-    const trolleyCount = list.filter((v: any) => v.vehicle_type === 11).length;
-    const busCount = list.filter((v: any) => v.vehicle_type === 3).length;
-    const routesSummary = JSON.stringify({
-      trolleyCount,
-      busCount,
-      centralRoutes: ['2', '3', '7', '10', '12', '24', '46'],
-      ismailRoutes: ['1', '4', '8', '17', '22', '30'],
-    });
 
     return {
       available: true,
       source: `Tranzy OpenData${agencyName}`,
       checkedAt,
-      note: 'Источник ответил · данные RTEC/PUA поступают в реальном времени.',
+      note: 'Данные RTEC/PUA Кишинёва поступают в реальном времени.',
       route: null,
       estimateMinutes: 30,
       liveVehicleCount: list.length,
-      trolleyCount,
-      busCount,
-      routesSummary,
     };
   } catch {
     return {

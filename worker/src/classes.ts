@@ -16,6 +16,7 @@ export function mapClassRow(row: any): ClassItem {
     online: Boolean(row.online),
     durationUnknown: Boolean(row.duration_unknown),
     duration_unknown: Boolean(row.duration_unknown),
+    destination: row.destination === 'sports' ? 'sports' : 'university',
     position: row.position !== undefined ? Number(row.position) : undefined,
   };
 }
@@ -63,8 +64,13 @@ export async function ensureClassesPopulated(env: Env, userId: string): Promise<
 
   const batch = sourceSchedule.map((c, index) => {
     const classId = c.id || crypto.randomUUID();
+    const isSport =
+      c.destination === 'sports' ||
+      (c.place && c.place.includes('Ismail')) ||
+      (c.title && (c.title.includes('физ') || c.title.includes('спорт')));
+    const dest = isSport ? 'sports' : 'university';
     return env.DB.prepare(
-      'INSERT INTO classes(id,user_id,day,start,end,title,kind,place,parity,online,duration_unknown,position) VALUES(?,?,?,?,?,?,?,?,?,?,?,?)'
+      'INSERT INTO classes(id,user_id,day,start,end,title,kind,place,parity,online,duration_unknown,destination,position) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?)'
     ).bind(
       classId,
       userId,
@@ -77,6 +83,7 @@ export async function ensureClassesPopulated(env: Env, userId: string): Promise<
       c.parity || null,
       c.online ? 1 : 0,
       c.durationUnknown || c.duration_unknown ? 1 : 0,
+      dest,
       c.position !== undefined ? c.position : index
     );
   });
@@ -150,9 +157,10 @@ export async function handleClasses(
     const place = (body.place || '').trim().slice(0, 100);
     const kind = body.kind ? body.kind.trim().slice(0, 50) : null;
     const position = Number.isInteger(body.position) ? body.position : 0;
+    const destination = body.destination === 'sports' ? 'sports' : 'university';
 
     await env.DB.prepare(
-      'INSERT INTO classes(id,user_id,day,start,end,title,kind,place,parity,online,duration_unknown,position) VALUES(?,?,?,?,?,?,?,?,?,?,?,?)'
+      'INSERT INTO classes(id,user_id,day,start,end,title,kind,place,parity,online,duration_unknown,destination,position) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?)'
     )
       .bind(
         classId,
@@ -166,6 +174,7 @@ export async function handleClasses(
         parity,
         online,
         durationUnknown,
+        destination,
         position
       )
       .run();
@@ -223,9 +232,10 @@ export async function handleClasses(
     const place = (body.place || '').trim().slice(0, 100);
     const kind = body.kind ? body.kind.trim().slice(0, 50) : null;
     const position = Number.isInteger(body.position) ? body.position : 0;
+    const destination = body.destination === 'sports' ? 'sports' : 'university';
 
     await env.DB.prepare(
-      'UPDATE classes SET day=?,start=?,end=?,title=?,kind=?,place=?,parity=?,online=?,duration_unknown=?,position=?,updated_at=CURRENT_TIMESTAMP WHERE id=? AND user_id=?'
+      'UPDATE classes SET day=?,start=?,end=?,title=?,kind=?,place=?,parity=?,online=?,duration_unknown=?,destination=?,position=?,updated_at=CURRENT_TIMESTAMP WHERE id=? AND user_id=?'
     )
       .bind(
         day,
@@ -237,6 +247,7 @@ export async function handleClasses(
         parity,
         online,
         durationUnknown,
+        destination,
         position,
         id,
         userId

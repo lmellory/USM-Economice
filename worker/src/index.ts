@@ -11,6 +11,7 @@ import { handleHomework, json } from './homework.js';
 import { notificationTick } from './notifications.js';
 import { dbSettings, validatedSettings } from './settings.js';
 import { saveTransit, transit } from './transit.js';
+import { getUserCommuteOptions, handleTransitRoutes } from './commute.js';
 import { Env } from './types.js';
 import { handleWebhook } from './webhook.js';
 
@@ -96,7 +97,13 @@ async function apiRequest(request: Request, env: Env, path: string): Promise<Res
       classes: classesList,
       exceptions: exceptionsList,
       transit: t,
+      commuteOptions: await getUserCommuteOptions(env, String(user.id)),
     });
+  }
+
+  if (path.startsWith('/api/transit/')) {
+    const subpath = path.slice('/api/transit'.length);
+    return handleTransitRoutes(request, env, String(user.id), subpath);
   }
 
   if (path === '/api/transit' && request.method === 'GET') {
@@ -110,7 +117,6 @@ async function apiRequest(request: Request, env: Env, path: string): Promise<Res
       route: null,
       estimateMinutes: t.estimate_minutes,
       liveVehicleCount: t.vehicle_count ?? undefined,
-      routesSummary: t.routes_summary ?? undefined,
     });
   }
 
