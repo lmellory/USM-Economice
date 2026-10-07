@@ -296,14 +296,24 @@ export async function evaluateUserCommute(
     searchStops(env, ''),
   ]);
 
-  const candidateTrolleyRoutes = [
-    { route_id: 2, route_short_name: '2' },
-    { route_id: 4, route_short_name: '4' },
-    { route_id: 10, route_short_name: '10' },
-    { route_id: 17, route_short_name: '17' },
-    { route_id: 22, route_short_name: '22' },
-    { route_id: 24, route_short_name: '24' },
-  ];
+  const routesRows = await env.DB.prepare(
+    'SELECT route_id, route_short_name FROM tranzy_routes WHERE route_type=11'
+  ).all<any>();
+
+  const candidateTrolleyRoutes =
+    routesRows.results && routesRows.results.length > 0
+      ? routesRows.results.map((r: any) => ({
+          route_id: Number(r.route_id),
+          route_short_name: String(r.route_short_name),
+        }))
+      : [
+          { route_id: 9, route_short_name: '2' },
+          { route_id: 20, route_short_name: '4' },
+          { route_id: 4, route_short_name: '10' },
+          { route_id: 16, route_short_name: '17' },
+          { route_id: 8, route_short_name: '22' },
+          { route_id: 28, route_short_name: '24' },
+        ];
 
   const calcContext = {
     nowMs: now.getTime(),

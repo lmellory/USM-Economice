@@ -88,6 +88,54 @@ export async function transit(env: Env): Promise<TransitState> {
     const data: any = await r.json();
     const list = Array.isArray(data) ? data : (data.data ?? data.vehicles ?? []);
 
+    let routesSummary = '';
+    try {
+      const routesUrl = vehiclesUrl.replace(/\/vehicles(?:\?.*)?$/, '/routes');
+      const rr = await fetch(routesUrl, { headers, signal: AbortSignal.timeout(6000) });
+      if (rr.ok) {
+        const routesData: any = await rr.json();
+        const routesList: any[] = Array.isArray(routesData) ? routesData : (routesData.data ?? []);
+        if (routesList.length > 0) {
+          const nowSec = Math.floor(Date.now() / 1000);
+          const stmts = routesList.slice(0, 100).map((item: any) =>
+            env.DB.prepare(
+              'INSERT OR REPLACE INTO tranzy_routes(route_id, route_short_name, route_long_name, route_type, route_color, updated_at) VALUES(?,?,?,?,?,?)'
+            ).bind(
+              Number(item.route_id),
+              String(item.route_short_name || ''),
+              item.route_long_name ? String(item.route_long_name) : null,
+              Number(item.route_type ?? 11),
+              item.route_color ? String(item.route_color) : null,
+              nowSec
+            )
+          );
+          for (let i = 0; i < stmts.length; i += 25) {
+            await env.DB.batch(stmts.slice(i, i + 25));
+          }
+        }
+        const trolleyCountsByRoute: Record<string, number> = {};
+        for (const v of list) {
+          if (v.vehicle_type === 11 && v.route_id != null) {
+            trolleyCountsByRoute[String(v.route_id)] =
+              (trolleyCountsByRoute[String(v.route_id)] || 0) + 1;
+          }
+        }
+        routesSummary = JSON.stringify({
+          routesCount: routesList.length,
+          activeOnRoute: {
+            '№2 (к USM)': trolleyCountsByRoute['9'] || 0,
+            '№17 (к Спорту)': trolleyCountsByRoute['16'] || 0,
+            '№4': trolleyCountsByRoute['20'] || 0,
+            '№22': trolleyCountsByRoute['8'] || 0,
+            '№10': trolleyCountsByRoute['4'] || 0,
+            '№24': trolleyCountsByRoute['28'] || 0,
+          },
+        });
+      }
+    } catch (e: any) {
+      routesSummary = JSON.stringify({ err: String(e?.message) });
+    }
+
     return {
       available: true,
       source: `Tranzy OpenData${agencyName}`,
@@ -96,6 +144,7 @@ export async function transit(env: Env): Promise<TransitState> {
       route: null,
       estimateMinutes: 30,
       liveVehicleCount: list.length,
+      routesSummary,
     };
   } catch {
     return {

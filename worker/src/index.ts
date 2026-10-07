@@ -17,7 +17,19 @@ import { handleWebhook } from './webhook.js';
 
 async function apiRequest(request: Request, env: Env, path: string): Promise<Response> {
   if (path === '/health') {
-    return json({ ok: true, service: 'usm-life-worker' });
+    const url = new URL(request.url);
+    if (url.searchParams.has('refresh')) {
+      await saveTransit(env);
+    }
+    const t = await env.DB.prepare('SELECT * FROM transit_state WHERE id=1').first<any>();
+    const routes = await env.DB.prepare('SELECT route_id, route_short_name, route_type FROM tranzy_routes LIMIT 50').all<any>();
+    return json({
+      ok: true,
+      service: 'usm-life-worker',
+      transit: t,
+      routesCount: routes.results?.length ?? 0,
+      routes: routes.results ?? [],
+    });
   }
 
   if (path === '/telegram/webhook' && request.method === 'POST') {

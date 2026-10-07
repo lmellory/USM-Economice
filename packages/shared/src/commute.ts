@@ -46,6 +46,77 @@ export function formatMinutesToTime(totalMin: number): string {
   return `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}`;
 }
 
+/**
+ * Official GTFS route_id mapping for Chișinău RTEC (Regia Transport Electric Chișinău) from Tranzy OpenData.
+ */
+export const CHISINAU_RTEC_ROUTE_MAP: Record<string, number> = {
+  '1': 13,
+  '2': 9,
+  '3': 12,
+  '4': 20,
+  '5': 3,
+  '7': 14,
+  '8': 7,
+  '9': 15,
+  '10': 4,
+  '12': 5,
+  '13': 11,
+  '16': 32,
+  '17': 16,
+  '20': 27,
+  '21': 10,
+  '22': 8,
+  '23': 6,
+  '24': 28,
+  '25': 17,
+  '26': 18,
+  '27': 19,
+  '28': 33,
+  '29': 21,
+  '30': 22,
+  '32': 24,
+  '33': 37,
+  '34': 25,
+  '35': 26,
+  '36': 29,
+  '37': 30,
+  '38': 31,
+};
+
+export const CHISINAU_RTEC_ROUTE_ID_TO_NAME: Record<number, string> = {
+  9: '2',
+  20: '4',
+  16: '17',
+  8: '22',
+  4: '10',
+  28: '24',
+  13: '1',
+  12: '3',
+  3: '5',
+  14: '7',
+  7: '8',
+  15: '9',
+  5: '12',
+  11: '13',
+  32: '16',
+  27: '20',
+  10: '21',
+  6: '23',
+  17: '25',
+  18: '26',
+  19: '27',
+  33: '28',
+  21: '29',
+  22: '30',
+  24: '32',
+  37: '33',
+  25: '34',
+  26: '35',
+  29: '36',
+  30: '37',
+  31: '38',
+};
+
 export interface CommuteCalculationContext {
   nowMs: number;
   nowMinuteOfDay: number;
@@ -79,6 +150,8 @@ export function calculateLegWaitTime(
       return false; // Stale GPS or invalid timestamp
     }
     if (leg.mode === 'fixed_route') {
+      const canonicalId = leg.route_short_name ? CHISINAU_RTEC_ROUTE_MAP[leg.route_short_name] : undefined;
+      if (canonicalId != null && v.route_id === canonicalId) return true;
       if (leg.route_id != null && v.route_id === leg.route_id) return true;
       if (
         leg.route_short_name &&
@@ -482,7 +555,9 @@ export function summarizeTrackedTrolleys(
   const results: TrackedTrolleySummary[] = [];
 
   for (const item of baseTracked) {
+    const canonicalId = CHISINAU_RTEC_ROUTE_MAP[item.route_short_name];
     const routeVehicles = validVehicles.filter((v) => {
+      if (canonicalId != null && v.route_id === canonicalId) return true;
       if (
         context.candidateTrolleyRoutes?.some(
           (r) => r.route_id === v.route_id && r.route_short_name === item.route_short_name
