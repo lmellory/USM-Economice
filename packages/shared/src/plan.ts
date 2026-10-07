@@ -1,4 +1,4 @@
-import { ClassItem, RoutineResult, RoutineSettings, WeekParity } from './types.js';
+import { ClassItem, RoutineResult, RoutineSettings, ScheduleException, WeekParity } from './types.js';
 import { hm, localNoon, min } from './time.js';
 
 export const baseSchedule: ClassItem[] = [
@@ -195,9 +195,10 @@ export const calculateMorningRoutine = (
   settings: RoutineSettings,
   transitMinutes?: number
 ): RoutineResult | null => {
-  if (!classes.length) return null;
+  const activeClasses = classes.filter((c) => !c.isCancelled);
+  if (!activeClasses.length) return null;
 
-  const sorted = [...classes].sort((a, b) => min(a.start) - min(b.start));
+  const sorted = [...activeClasses].sort((a, b) => min(a.start) - min(b.start));
   const first = sorted[0];
   const firstCampus = !first.online;
 
@@ -263,4 +264,41 @@ export const calculateMorningRoutine = (
     bedMin: bedtime,
     leaveMin: leaveAt,
   };
+};
+
+export const applyScheduleExceptions = (
+  classes: ClassItem[],
+  exceptions: ScheduleException[],
+  targetDate: string
+): ClassItem[] => {
+  const dateExceptions = exceptions.filter((e) => e.date === targetDate);
+  if (!dateExceptions.length) return classes;
+
+  return classes.map((item) => {
+    const exc = dateExceptions.find((e) => e.class_id === item.id);
+    if (!exc) return item;
+
+    if (exc.type === 'cancel') {
+      return {
+        ...item,
+        isCancelled: true,
+        exceptionId: exc.id,
+        exceptionNote: exc.note ?? null,
+      };
+    }
+
+    if (exc.type === 'move') {
+      return {
+        ...item,
+        start: exc.new_start || item.start,
+        end: exc.new_end !== undefined && exc.new_end !== null ? exc.new_end : item.end,
+        place: exc.new_place !== undefined && exc.new_place !== null ? exc.new_place : item.place,
+        isMoved: true,
+        exceptionId: exc.id,
+        exceptionNote: exc.note ?? null,
+      };
+    }
+
+    return item;
+  });
 };

@@ -1,10 +1,12 @@
 import { describe, expect, it } from 'vitest';
 import {
+  applyScheduleExceptions,
   calculateMorningRoutine,
   calculateWeekParity,
   hm,
   localInstant,
   min,
+  ScheduleException,
   toChisinauDate,
   zonedIso,
 } from '../src/index.js';
@@ -154,5 +156,97 @@ describe('Daylight saving transitions (Europe/Chisinau)', () => {
     const preDst = localInstant('2026-03-25', 9 * 60);
     const preIso = new Date(preDst).toISOString();
     expect(preIso).toBe('2026-03-25T07:00:00.000Z');
+  });
+});
+
+describe('applyScheduleExceptions', () => {
+  const sampleClasses = [
+    {
+      id: 'c-1',
+      day: 1,
+      start: '13:15',
+      end: '14:45',
+      title: 'Румынский язык',
+      place: '214 · корпус 4А',
+    },
+    {
+      id: 'c-2',
+      day: 1,
+      start: '15:00',
+      end: '16:30',
+      title: 'Экономическая теория',
+      place: '145 · Центральный корпус',
+    },
+  ];
+
+  it('marks a class as cancelled when cancel exception exists', () => {
+    const exceptions: ScheduleException[] = [
+      {
+        id: 'e-1',
+        user_id: 'u-1',
+        date: '2026-10-12',
+        class_id: 'c-1',
+        type: 'cancel',
+        note: 'Преподаватель на конференции',
+      },
+    ];
+
+    const updated = applyScheduleExceptions(sampleClasses, exceptions, '2026-10-12');
+    expect(updated[0].isCancelled).toBe(true);
+    expect(updated[0].exceptionId).toBe('e-1');
+    expect(updated[0].exceptionNote).toBe('Преподаватель на конференции');
+    expect(updated[1].isCancelled).toBeUndefined();
+
+    // Routine calculation ignores cancelled class:
+    const routine = calculateMorningRoutine(updated, {
+      sleep_hours: 8,
+      sleep_latency: 15,
+      wash_minutes: 15,
+      breakfast_minutes: 20,
+      get_ready_minutes: 15,
+      travel_buffer: 10,
+      travel_minutes: 35,
+    });
+    expect(routine).not.toBeNull();
+    // First active class is now c-2 (15:00) instead of c-1 (13:15)
+    expect(routine?.first.id).toBe('c-2');
+  });
+
+  it('overrides start, end, and place when move exception exists', () => {
+    const exceptions: ScheduleException[] = [
+      {
+        id: 'e-2',
+        user_id: 'u-1',
+        date: '2026-10-12',
+        class_id: 'c-2',
+        type: 'move',
+        new_start: '10:00',
+        new_end: '11:30',
+        new_place: 'Аудитория 101',
+        note: 'Перенос на первую пару',
+      },
+    ];
+
+    const updated = applyScheduleExceptions(sampleClasses, exceptions, '2026-10-12');
+    expect(updated[1].isMoved).toBe(true);
+    expect(updated[1].start).toBe('10:00');
+    expect(updated[1].end).toBe('11:30');
+    expect(updated[1].place).toBe('Аудитория 101');
+    expect(updated[1].exceptionNote).toBe('Перенос на первую пару');
+  });
+
+  it('does nothing when exception date does not match target date', () => {
+    const exceptions: ScheduleException[] = [
+      {
+        id: 'e-3',
+        user_id: 'u-1',
+        date: '2026-10-19',
+        class_id: 'c-1',
+        type: 'cancel',
+      },
+    ];
+
+    const updated = applyScheduleExceptions(sampleClasses, exceptions, '2026-10-12');
+    expect(updated[0].isCancelled).toBeUndefined();
   });
 });

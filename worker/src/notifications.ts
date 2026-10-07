@@ -1,4 +1,5 @@
 import {
+  applyScheduleExceptions,
   baseSchedule,
   calculateMorningRoutine,
   calculateWeekParity,
@@ -7,6 +8,7 @@ import {
   localInstant,
   toChisinauDate,
 } from '@usm/shared';
+import { mapClassRow, mapExceptionRow } from './classes.js';
 import { Env } from './types.js';
 
 export async function telegram(env: Env, method: string, body: unknown): Promise<any> {
@@ -33,10 +35,31 @@ export async function buildEveningDigest(
   const tomorrowWeekday = new Date(`${tomorrowDate}T12:00:00Z`).getUTCDay() || 7;
   const parity = calculateWeekParity(tomorrowDate, u?.semester_start, u?.first_week_parity);
 
-  const allCl = (u?.schedule ? JSON.parse(String(u.schedule)) : baseSchedule) as ClassItem[];
-  const tomorrowCl = allCl
-    .filter((c) => c.day === tomorrowWeekday && (!c.parity || (parity && c.parity === parity)))
-    .sort((a, b) => a.start.localeCompare(b.start));
+  const [classRows, excRows] = await Promise.all([
+    env.DB.prepare('SELECT * FROM classes WHERE user_id=? ORDER BY day ASC, start ASC, position ASC')
+      .bind(userId)
+      .all(),
+    env.DB.prepare('SELECT * FROM schedule_exceptions WHERE user_id=? AND date=?')
+      .bind(userId, tomorrowDate)
+      .all(),
+  ]);
+
+  let allCl: ClassItem[];
+  if (classRows.results && classRows.results.length > 0) {
+    allCl = classRows.results.map(mapClassRow);
+  } else {
+    allCl = (u?.schedule ? JSON.parse(String(u.schedule)) : baseSchedule) as ClassItem[];
+  }
+  const exceptions = (excRows.results || []).map(mapExceptionRow);
+
+  const rawTomorrow = allCl.filter(
+    (c) => c.day === tomorrowWeekday && (!c.parity || (parity && c.parity === parity))
+  );
+  const tomorrowCl = applyScheduleExceptions(rawTomorrow, exceptions, tomorrowDate).sort((a, b) =>
+    a.start.localeCompare(b.start)
+  );
+
+  const activeTomorrow = tomorrowCl.filter((c) => !c.isCancelled);
 
   const dayFmt = new Intl.DateTimeFormat('ru-RU', {
     timeZone: 'Europe/Chisinau',
@@ -46,11 +69,11 @@ export async function buildEveningDigest(
   }).format(new Date(`${tomorrowDate}T12:00:00Z`));
   const dayNameCap = dayFmt.charAt(0).toUpperCase() + dayFmt.slice(1);
 
-  if (!tomorrowCl.length) {
+  if (!activeTomorrow.length) {
     return `🌙 Вечерний план на завтра (${dayNameCap})\n\n✨ Занятий нет — свободный день! Можно спокойно отдохнуть и выспаться.`;
   }
 
-  const routine = calculateMorningRoutine(tomorrowCl, {
+  const routine = calculateMorningRoutine(activeTomorrow, {
     sleep_hours: u?.sleep_hours ?? 8,
     sleep_latency: u?.sleep_latency ?? 15,
     wash_minutes: u?.wash_minutes ?? 15,
@@ -61,8 +84,8 @@ export async function buildEveningDigest(
     english_duration: u?.english_duration ?? 60,
   });
 
-  const first = tomorrowCl[0];
-  const targetCampus = first.online ? tomorrowCl.find((c) => !c.online) : first;
+  const first = activeTomorrow[0];
+  const targetCampus = first.online ? activeTomorrow.find((c) => !c.online) : first;
 
   const tomorrowHw = await env.DB.prepare(
     'SELECT title FROM homework WHERE user_id=? AND completed=0 AND due_date=?'
@@ -163,23 +186,46 @@ export async function notificationTick(env: Env): Promise<void> {
 
   // Process Morning / Sleep / Leave reminders
   const plans = await env.DB.prepare(
-    'SELECT s.*,u.id AS telegram_id,c.schedule FROM settings s JOIN users u ON u.id=s.user_id JOIN schedule_overrides c ON c.user_id=s.user_id WHERE s.wake_reminder=1 OR s.sleep_reminder=1 OR s.leave_reminder=1'
+    'SELECT s.*,u.id AS telegram_id,c.schedule FROM settings s JOIN users u ON u.id=s.user_id LEFT JOIN schedule_overrides c ON c.user_id=s.user_id WHERE s.wake_reminder=1 OR s.sleep_reminder=1 OR s.leave_reminder=1'
   ).all<any>();
 
   for (const u of plans.results) {
-    const classes = JSON.parse(String(u.schedule)) as ClassItem[];
+    const userClassesRows = await env.DB.prepare(
+      'SELECT * FROM classes WHERE user_id=? ORDER BY day ASC, start ASC, position ASC'
+    )
+      .bind(u.user_id)
+      .all();
+
+    let classes: ClassItem[];
+    if (userClassesRows.results && userClassesRows.results.length > 0) {
+      classes = userClassesRows.results.map(mapClassRow);
+    } else {
+      classes = (u.schedule ? JSON.parse(String(u.schedule)) : baseSchedule) as ClassItem[];
+    }
+
     for (const offset of [0, 1]) {
       const date = dateShift(today, offset);
       const weekday = new Date(`${date}T12:00:00Z`).getUTCDay() || 7;
       const parity = calculateWeekParity(date, u.semester_start, u.first_week_parity);
 
-      const daily = classes
-        .filter((c) => c.day === weekday && (!c.parity || (parity && c.parity === parity)))
-        .sort((a, b) => a.start.localeCompare(b.start));
+      const excRows = await env.DB.prepare(
+        'SELECT * FROM schedule_exceptions WHERE user_id=? AND date=?'
+      )
+        .bind(u.user_id, date)
+        .all();
+      const exceptions = (excRows.results || []).map(mapExceptionRow);
 
-      if (!daily.length) continue;
+      const rawDaily = classes.filter(
+        (c) => c.day === weekday && (!c.parity || (parity && c.parity === parity))
+      );
+      const daily = applyScheduleExceptions(rawDaily, exceptions, date).sort((a, b) =>
+        a.start.localeCompare(b.start)
+      );
 
-      const routine = calculateMorningRoutine(daily, {
+      const activeDaily = daily.filter((c) => !c.isCancelled);
+      if (!activeDaily.length) continue;
+
+      const routine = calculateMorningRoutine(activeDaily, {
         sleep_hours: u.sleep_hours,
         sleep_latency: u.sleep_latency,
         wash_minutes: u.wash_minutes,
@@ -192,7 +238,7 @@ export async function notificationTick(env: Env): Promise<void> {
 
       if (!routine) continue;
 
-      const targetCampus = daily[0].online ? daily.find((c) => !c.online) : daily[0];
+      const targetCampus = activeDaily[0].online ? activeDaily.find((c) => !c.online) : activeDaily[0];
 
       const triggers = [
         ['wake', Boolean(u.wake_reminder), routine.wakeMin],

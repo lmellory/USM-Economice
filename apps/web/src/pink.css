@@ -266,3 +266,38 @@ body.pink-theme {
   background: #e04a6e;
   box-shadow: 0 0 6px #e04a6e;
 }
+
+/* Stage 1: Schedule & Exceptions in Pink Theme */
+.pink-theme .schedule-day-pill,
+.pink-theme .exception-item-card {
+  background: #ffffff;
+  border-color: #f4dbe2;
+  color: #3b242a;
+}
+.pink-theme .schedule-day-pill strong,
+.pink-theme .exception-item-header strong {
+  color: #3b242a;
+}
+.pink-theme .schedule-day-pill.active {
+  background: #c45b76;
+  color: #fff;
+  border-color: #c45b76;
+}
+.pink-theme .parity-segmented,
+.pink-theme .exception-target-card {
+  background: #fcf1f4;
+}
+.pink-theme .parity-segmented button.active {
+  background: #ffffff;
+  color: #3b242a;
+}
+.pink-theme .type-toggle-row button {
+  background: #ffffff;
+  border-color: #f4dbe2;
+  color: #8a6570;
+}
+.pink-theme .type-toggle-row button.on {
+  background: #fae4eb;
+  color: #c45b76;
+  border-color: #c45b76;
+}

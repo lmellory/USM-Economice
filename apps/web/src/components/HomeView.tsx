@@ -1,15 +1,19 @@
 import React from 'react';
 import {
   ArrowUpRight,
+  Ban,
   Bell,
   Bus,
+  CalendarClock,
   ChevronLeft,
   ChevronRight,
   CircleAlert,
+  Clock,
   Clock3,
   Footprints,
   MapPin,
   Moon,
+  RotateCcw,
   Sunrise,
 } from 'lucide-react';
 import { ClassItem, RoutineResult, shortDays } from '../lib/plan.js';
@@ -35,6 +39,8 @@ interface HomeViewProps {
   dayNames: string[];
   navigate: (view: any) => void;
   vibrate: () => void;
+  onOpenExceptionModal?: (item: ClassItem) => void;
+  onDeleteException?: (id: string) => void;
 }
 
 export function HomeView({
@@ -57,6 +63,8 @@ export function HomeView({
   dayNames,
   navigate,
   vibrate,
+  onOpenExceptionModal,
+  onDeleteException,
 }: HomeViewProps) {
   const headerTime = new Intl.DateTimeFormat('ru-RU', {
     timeZone: TZ,
@@ -216,12 +224,14 @@ export function HomeView({
             const isSelectedToday = selectedInfo.key === todayKey;
             const startM = min(c.start);
             const endM = c.end ? min(c.end) : startM + 90;
-            const isNow = isSelectedToday && nowMinutes >= startM && nowMinutes < endM;
+            const isNow = !c.isCancelled && isSelectedToday && nowMinutes >= startM && nowMinutes < endM;
 
             return (
               <article
-                className={`class-card ${c.online ? 'online' : ''} ${isNow ? 'current' : ''}`}
-                key={`${c.start}-${c.title}`}
+                className={`class-card ${c.online ? 'online' : ''} ${isNow ? 'current' : ''} ${
+                  c.isCancelled ? 'cancelled' : ''
+                } ${c.isMoved ? 'moved' : ''}`}
+                key={`${c.start}-${c.title}-${i}`}
               >
                 <div className="time-col">
                   <strong>{c.start}</strong>
@@ -235,10 +245,30 @@ export function HomeView({
                       <span style={{ marginLeft: 4 }}>Сейчас идёт</span>
                     </div>
                   )}
-                  <div className="class-title">
+
+                  {c.isCancelled && (
+                    <div className="exception-badge cancel">
+                      <Ban size={13} />
+                      <span>Пара отменена на этот день</span>
+                    </div>
+                  )}
+
+                  {c.isMoved && (
+                    <div className="exception-badge move">
+                      <Clock size={13} />
+                      <span>Пара перенесена на этот день</span>
+                    </div>
+                  )}
+
+                  <div className={`class-title ${c.isCancelled ? 'strikethrough' : ''}`}>
                     {c.title}
                     {c.kind && <span className="kind">{c.kind}</span>}
                   </div>
+
+                  {c.exceptionNote && (
+                    <div className="exception-note-text">«{c.exceptionNote}»</div>
+                  )}
+
                   <div className="class-meta">
                     {c.online ? (
                       <>
@@ -269,6 +299,36 @@ export function HomeView({
                       <CircleAlert size={13} /> Укажи длительность урока
                     </button>
                   )}
+
+                  <div className="class-card-footer-actions">
+                    {c.isCancelled || c.isMoved ? (
+                      <button
+                        type="button"
+                        className="exception-reset-link"
+                        onClick={() => {
+                          vibrate();
+                          if (c.exceptionId && onDeleteException) {
+                            onDeleteException(c.exceptionId);
+                          }
+                        }}
+                      >
+                        <RotateCcw size={12} /> Вернуть как обычно
+                      </button>
+                    ) : (
+                      onOpenExceptionModal && (
+                        <button
+                          type="button"
+                          className="exception-action-link"
+                          onClick={() => {
+                            vibrate();
+                            onOpenExceptionModal(c);
+                          }}
+                        >
+                          <CalendarClock size={13} /> Изменить на эту дату
+                        </button>
+                      )
+                    )}
+                  </div>
                 </div>
                 <div className={`class-index c${i % 4}`}>{String(i + 1).padStart(2, '0')}</div>
               </article>

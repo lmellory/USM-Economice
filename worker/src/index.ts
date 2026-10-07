@@ -1,5 +1,12 @@
 import { baseSchedule } from '@usm/shared';
 import { verifyInitData } from './auth.js';
+import {
+  ensureClassesPopulated,
+  handleClasses,
+  handleScheduleExceptions,
+  mapClassRow,
+  mapExceptionRow,
+} from './classes.js';
 import { handleHomework, json } from './homework.js';
 import { notificationTick } from './notifications.js';
 import { dbSettings, validatedSettings } from './settings.js';
@@ -41,26 +48,26 @@ async function apiRequest(request: Request, env: Env, path: string): Promise<Res
   ]);
 
   if (path === '/api/bootstrap' && request.method === 'GET') {
-    await env.DB.prepare(
-      'INSERT INTO schedule_overrides(id,user_id,schedule) VALUES(?,?,?) ON CONFLICT(user_id) DO NOTHING'
-    )
-      .bind(crypto.randomUUID(), String(user.id), JSON.stringify(baseSchedule))
-      .run();
+    await ensureClassesPopulated(env, String(user.id));
 
-    const [settingsRow, homework, custom, transitRow] = await Promise.all([
+    const [settingsRow, homework, classRows, excRows, transitRow] = await Promise.all([
       env.DB.prepare('SELECT * FROM settings WHERE user_id=?').bind(String(user.id)).first(),
       env.DB.prepare(
         'SELECT * FROM homework WHERE user_id=? ORDER BY completed ASC, CASE WHEN due_at IS NULL THEN 1 ELSE 0 END, due_at ASC, created_at DESC'
       )
         .bind(String(user.id))
         .all(),
-      env.DB.prepare('SELECT schedule FROM schedule_overrides WHERE user_id=?')
+      env.DB.prepare('SELECT * FROM classes WHERE user_id=? ORDER BY day ASC, start ASC, position ASC')
         .bind(String(user.id))
-        .first<any>(),
+        .all(),
+      env.DB.prepare('SELECT * FROM schedule_exceptions WHERE user_id=? ORDER BY date ASC')
+        .bind(String(user.id))
+        .all(),
       env.DB.prepare('SELECT * FROM transit_state WHERE id=1').first<any>(),
     ]);
 
-    const storedSchedule = custom?.schedule ? JSON.parse(String(custom.schedule)) : baseSchedule;
+    const classesList = (classRows.results || []).map(mapClassRow);
+    const exceptionsList = (excRows.results || []).map(mapExceptionRow);
 
     const t = transitRow
       ? {
@@ -85,7 +92,9 @@ async function apiRequest(request: Request, env: Env, path: string): Promise<Res
     return json({
       settings: dbSettings(settingsRow),
       homework: homework.results,
-      schedule: storedSchedule,
+      schedule: classesList,
+      classes: classesList,
+      exceptions: exceptionsList,
       transit: t,
     });
   }
@@ -139,6 +148,16 @@ async function apiRequest(request: Request, env: Env, path: string): Promise<Res
   const homeworkPath = path.match(/^\/api\/homework(?:\/([^/]+))?$/);
   if (homeworkPath) {
     return handleHomework(request, env, String(user.id), homeworkPath[1]);
+  }
+
+  const classesPath = path.match(/^\/api\/classes(?:\/([^/]+))?$/);
+  if (classesPath) {
+    return handleClasses(request, env, String(user.id), classesPath[1]);
+  }
+
+  const exceptionsPath = path.match(/^\/api\/schedule-exceptions(?:\/([^/]+))?$/);
+  if (exceptionsPath) {
+    return handleScheduleExceptions(request, env, String(user.id), exceptionsPath[1]);
   }
 
   return json({ error: 'Не найдено.' }, 404);

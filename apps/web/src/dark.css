@@ -189,3 +189,49 @@ body.dark-theme {
   background: #52cc6c;
   box-shadow: 0 0 6px #52cc6c;
 }
+
+/* Stage 1: Schedule & Exceptions in Dark Theme */
+.dark-theme .schedule-day-pill,
+.dark-theme .exception-item-card {
+  background: #222824;
+  border-color: #353d37;
+  color: #e7e9e4;
+}
+.dark-theme .schedule-day-pill strong,
+.dark-theme .exception-item-header strong {
+  color: #e7e9e4;
+}
+.dark-theme .schedule-day-pill.active {
+  background: #758a78;
+  color: #fff;
+  border-color: #758a78;
+}
+.dark-theme .parity-segmented,
+.dark-theme .exception-target-card {
+  background: #1e2420;
+}
+.dark-theme .parity-segmented button.active {
+  background: #2b332d;
+  color: #e7e9e4;
+}
+.dark-theme .type-toggle-row button {
+  background: #222824;
+  border-color: #353d37;
+  color: #aeb7ae;
+}
+.dark-theme .type-toggle-row button.on {
+  background: #2a342c;
+  color: #8fa693;
+  border-color: #8fa693;
+}
+.dark-theme .class-card.cancelled {
+  background: #202421;
+}
+.dark-theme .exception-badge.cancel {
+  background: #3b1b1b;
+  color: #f87171;
+}
+.dark-theme .exception-badge.move {
+  background: #3b2c15;
+  color: #fbbf24;
+}

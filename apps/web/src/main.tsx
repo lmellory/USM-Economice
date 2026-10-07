@@ -1,6 +1,6 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { createRoot } from 'react-dom/client';
-import { BookOpen, CalendarDays, CircleAlert, Settings, X } from 'lucide-react';
+import { BookOpen, CalendarDays, CircleAlert, GraduationCap, Settings, X } from 'lucide-react';
 import './style.css';
 import './telegram.css';
 import './dark.css';
@@ -14,12 +14,16 @@ import {
   ClassItem,
   dayNames,
   getDaySchedule,
+  ScheduleException,
 } from './lib/plan.js';
 import { dateParts, dateShift, localNoon, TZ } from './lib/time.js';
 
+import { ClassModal } from './components/ClassModal.js';
+import { ExceptionModal } from './components/ExceptionModal.js';
 import { HomeView } from './components/HomeView.js';
 import { HomeworkModal } from './components/HomeworkModal.js';
 import { HomeworkView } from './components/HomeworkView.js';
+import { ScheduleView } from './components/ScheduleView.js';
 import { SettingsView } from './components/SettingsView.js';
 
 function getNowMinutes(): number {
@@ -35,11 +39,12 @@ function getNowMinutes(): number {
 }
 
 export function App() {
-  const [view, setView] = useState<'home' | 'hw' | 'settings'>('home');
+  const [view, setView] = useState<'home' | 'schedule' | 'hw' | 'settings'>('home');
   const [selected, setSelected] = useState(new Date());
   const [weekOffset, setWeekOffset] = useState(0);
   const [hw, setHw] = useState<any[]>([]);
   const [schedule, setSchedule] = useState<ClassItem[]>(baseSchedule);
+  const [exceptions, setExceptions] = useState<ScheduleException[]>([]);
   const [settings, setSettings] = useState<any>({
     theme: (typeof localStorage !== 'undefined' && localStorage.getItem('usm_theme')) || 'light',
     sleep_hours: 8,
@@ -63,6 +68,11 @@ export function App() {
   });
   const [modal, setModal] = useState(false);
   const [editing, setEditing] = useState<any>(null);
+  const [classModal, setClassModal] = useState(false);
+  const [editingClass, setEditingClass] = useState<ClassItem | null>(null);
+  const [classModalInitialDay, setClassModalInitialDay] = useState(1);
+  const [exceptionModal, setExceptionModal] = useState(false);
+  const [selectedExceptionClass, setSelectedExceptionClass] = useState<ClassItem | null>(null);
   const [ready, setReady] = useState(false);
   const [error, setError] = useState('');
   const [tab, setTab] = useState('На сегодня');
@@ -86,7 +96,8 @@ export function App() {
       try {
         const data = await request('/api/bootstrap');
         setSettings(data.settings);
-        setSchedule(data.schedule || baseSchedule);
+        setSchedule(data.classes || data.schedule || baseSchedule);
+        setExceptions(data.exceptions || []);
         setHw(
           data.homework.map((x: any) => ({
             ...x,
@@ -130,22 +141,29 @@ export function App() {
       if (modal) {
         setModal(false);
         setEditing(null);
+      } else if (classModal) {
+        setClassModal(false);
+        setEditingClass(null);
+      } else if (exceptionModal) {
+        setExceptionModal(false);
+        setSelectedExceptionClass(null);
       } else {
         setView('home');
       }
     };
 
-    if (view === 'home' && !modal) back.hide();
+    const hasOpenModal = modal || classModal || exceptionModal;
+    if (view === 'home' && !hasOpenModal) back.hide();
     else back.show();
 
     back.onClick(handleBack);
     return () => back.offClick(handleBack);
-  }, [view, modal]);
+  }, [view, modal, classModal, exceptionModal]);
 
   const scheduleFor = (d: Date) => {
     const p = dateParts(d);
     const parity = calculateWeekParity(p.key, settings.semester_start, settings.first_week_parity);
-    return getDaySchedule(schedule, p.weekday, parity);
+    return getDaySchedule(schedule, p.weekday, parity, exceptions, p.key);
   };
 
   const daySchedule = scheduleFor(selected);
@@ -231,9 +249,84 @@ export function App() {
     }
   };
 
+  const saveClass = async (payload: Partial<ClassItem>) => {
+    try {
+      const saved = await request(payload.id ? `/api/classes/${payload.id}` : '/api/classes', {
+        method: payload.id ? 'PUT' : 'POST',
+        body: JSON.stringify(payload),
+      });
+      setSchedule((prev) =>
+        payload.id ? prev.map((c) => (c.id === payload.id ? saved : c)) : [...prev, saved]
+      );
+      setClassModal(false);
+      setEditingClass(null);
+      vibrate();
+    } catch (e: any) {
+      setError(e.message);
+    }
+  };
+
+  const deleteClass = async (id: string) => {
+    try {
+      await request(`/api/classes/${id}`, { method: 'DELETE' });
+      setSchedule((prev) => prev.filter((c) => c.id !== id));
+      setExceptions((prev) => prev.filter((e) => e.class_id !== id));
+      setClassModal(false);
+      setEditingClass(null);
+      vibrate();
+    } catch (e: any) {
+      setError(e.message);
+    }
+  };
+
+  const saveException = async (payload: any) => {
+    try {
+      const saved = await request('/api/schedule-exceptions', {
+        method: 'POST',
+        body: JSON.stringify(payload),
+      });
+      setExceptions((prev) => {
+        const filtered = prev.filter(
+          (e) => !(e.class_id === saved.class_id && e.date === saved.date)
+        );
+        return [...filtered, saved];
+      });
+      setExceptionModal(false);
+      setSelectedExceptionClass(null);
+      vibrate();
+    } catch (e: any) {
+      setError(e.message);
+    }
+  };
+
+  const deleteException = async (id: string) => {
+    try {
+      await request(`/api/schedule-exceptions/${id}`, { method: 'DELETE' });
+      setExceptions((prev) => prev.filter((e) => e.id !== id));
+      setExceptionModal(false);
+      setSelectedExceptionClass(null);
+      vibrate();
+    } catch (e: any) {
+      setError(e.message);
+    }
+  };
+
   const openHw = (item: any = null) => {
     setEditing(item);
     setModal(true);
+    vibrate();
+  };
+
+  const openClassModal = (day = 1, item: ClassItem | null = null) => {
+    setClassModalInitialDay(day);
+    setEditingClass(item);
+    setClassModal(true);
+    vibrate();
+  };
+
+  const openExceptionModal = (item: ClassItem) => {
+    setSelectedExceptionClass(item);
+    setExceptionModal(true);
     vibrate();
   };
 
@@ -268,6 +361,16 @@ export function App() {
           save={saveSettings}
           onBack={() => navigate('home')}
         />
+      ) : view === 'schedule' ? (
+        <ScheduleView
+          schedule={schedule}
+          exceptions={exceptions}
+          onAddClass={(day) => openClassModal(day, null)}
+          onEditClass={(item) => openClassModal(item.day, item)}
+          onDeleteClass={deleteClass}
+          onDeleteException={deleteException}
+          vibrate={vibrate}
+        />
       ) : view === 'hw' ? (
         <HomeworkView
           items={hw}
@@ -298,6 +401,8 @@ export function App() {
           dayNames={dayNames}
           navigate={navigate}
           vibrate={vibrate}
+          onOpenExceptionModal={openExceptionModal}
+          onDeleteException={deleteException}
         />
       )}
 
@@ -309,6 +414,14 @@ export function App() {
         >
           <CalendarDays size={20} />
           <span>День</span>
+        </button>
+        <button
+          type="button"
+          className={view === 'schedule' ? 'active' : ''}
+          onClick={() => navigate('schedule')}
+        >
+          <GraduationCap size={20} />
+          <span>Пары</span>
         </button>
         <button
           type="button"
@@ -340,6 +453,37 @@ export function App() {
             setEditing(null);
           }}
           onSave={saveHw}
+        />
+      )}
+
+      {classModal && (
+        <ClassModal
+          item={editingClass}
+          initialDay={classModalInitialDay}
+          onClose={() => {
+            setClassModal(false);
+            setEditingClass(null);
+          }}
+          onSave={saveClass}
+          onDelete={deleteClass}
+        />
+      )}
+
+      {exceptionModal && selectedExceptionClass && (
+        <ExceptionModal
+          classItem={selectedExceptionClass}
+          date={selectedInfo.key}
+          existingException={
+            exceptions.find(
+              (e) => e.class_id === selectedExceptionClass.id && e.date === selectedInfo.key
+            ) || null
+          }
+          onClose={() => {
+            setExceptionModal(false);
+            setSelectedExceptionClass(null);
+          }}
+          onSave={saveException}
+          onDelete={deleteException}
         />
       )}
 
