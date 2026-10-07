@@ -87,6 +87,9 @@ export interface CommuteLegResult {
   travelMinutes: number;
   firstVehicleEtaMinutes?: number;
   vehicleLabel?: string;
+  closestVehicleDistanceMeters?: number;
+  vehiclesOnLineCount: number;
+  nearbyVehiclesCount: number;
   source: EstimateSource;
 }
 
@@ -107,6 +110,23 @@ export interface CommuteOptionResult {
   summaryNote?: string;
   legs: CommuteLegResult[];
   isRecommended?: boolean;
+  vehiclesOnLineCount?: number;
+  nearbyVehiclesCount?: number;
+  closestVehicleDistanceMeters?: number;
+  closestVehicleEtaMinutes?: number;
+  closestVehicleLabel?: string;
+}
+
+export interface TrackedTrolleySummary {
+  route_short_name: string;
+  destination: DestinationType;
+  label: string;
+  vehiclesOnLineCount: number;
+  nearbyVehiclesCount: number;
+  closestDistanceMeters?: number;
+  closestEtaMinutes?: number;
+  closestVehicleLabel?: string;
+  boardStopName?: string;
 }
 
 export interface ScheduleException {

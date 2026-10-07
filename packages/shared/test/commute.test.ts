@@ -9,6 +9,7 @@ import {
   TransitStop,
   TripStopTime,
   VehiclePosition,
+  summarizeTrackedTrolleys,
 } from '../src/index.js';
 
 describe('Tranzy Commute Calculations', () => {
@@ -318,5 +319,115 @@ describe('Tranzy Commute Calculations', () => {
     expect(item.walkAfterMinutes).toBe(3);
     expect(item.legs[0].chosenRouteName).toBe('17');
     expect(item.isRecommended).toBe(true);
+  });
+
+  // 8. Тест: Подсчет машин на рейсе и рядом с меткой остановки
+  it('8. should accurately count vehicles on line and nearby the stop marker', () => {
+    const leg: CommuteLeg = {
+      mode: 'fixed_route',
+      route_id: 2,
+      route_short_name: '2',
+      board_stop_id: 101, // Dacia / Cuza Vodă: 46.9825, 28.865
+      board_stop_name: 'Dacia / Cuza Vodă',
+      alight_stop_id: 202,
+      alight_stop_name: 'Parcul Ștefan cel Mare',
+    };
+
+    const vehicles: VehiclePosition[] = [
+      // 1: Близко (~400м от Cuza Voda)
+      {
+        id: 'v2-1',
+        label: '1241',
+        route_id: 2,
+        latitude: 46.985,
+        longitude: 28.864,
+        timestamp: new Date(baseNowMs - 20000).toISOString(),
+      },
+      // 2: В радиусе (~1.8 км от Cuza Voda)
+      {
+        id: 'v2-2',
+        label: '1242',
+        route_id: 2,
+        latitude: 46.995,
+        longitude: 28.855,
+        timestamp: new Date(baseNowMs - 35000).toISOString(),
+      },
+      // 3: Далеко в центре (~4.5 км от Cuza Voda)
+      {
+        id: 'v2-3',
+        label: '1243',
+        route_id: 2,
+        latitude: 47.02,
+        longitude: 28.835,
+        timestamp: new Date(baseNowMs - 15000).toISOString(),
+      },
+      // 4: Другой маршрут (17)
+      {
+        id: 'v17-1',
+        label: '1701',
+        route_id: 17,
+        latitude: 46.983,
+        longitude: 28.864,
+        timestamp: new Date(baseNowMs - 10000).toISOString(),
+      },
+    ];
+
+    const res = calculateLegWaitTime(leg, 0, baseNowMin, {
+      nowMs: baseNowMs,
+      nowMinuteOfDay: baseNowMin,
+      vehicles,
+      stops,
+    });
+
+    // Из 3 троллейбусов маршрута 2:
+    // Все 3 активны на рейсе (vehiclesOnLineCount = 3)
+    expect(res.vehiclesOnLineCount).toBe(3);
+    // 2 находятся рядом с меткой (<= 2.5 км)
+    expect(res.nearbyVehiclesCount).toBe(2);
+    // Ближайший находится на расстоянии ~300-400м
+    expect(res.closestVehicleDistanceMeters).toBeGreaterThan(200);
+    expect(res.closestVehicleDistanceMeters).toBeLessThan(600);
+  });
+
+  // 9. Тест: Сводка нужных пользователю троллейбусов (2, 17, 4, 22)
+  it('9. should summarize user-relevant trolleybuses with on-duty and nearby counts', () => {
+    const vehicles: VehiclePosition[] = [
+      {
+        id: 'v2',
+        label: '2001',
+        route_id: 2,
+        latitude: 46.984,
+        longitude: 28.865,
+        timestamp: new Date(baseNowMs - 10000).toISOString(),
+      },
+      {
+        id: 'v17',
+        label: '1702',
+        route_id: 17,
+        latitude: 46.983,
+        longitude: 28.864,
+        timestamp: new Date(baseNowMs - 15000).toISOString(),
+      },
+    ];
+
+    const summaries = summarizeTrackedTrolleys([], {
+      nowMs: baseNowMs,
+      nowMinuteOfDay: baseNowMin,
+      vehicles,
+      stops,
+    });
+
+    expect(summaries.length).toBeGreaterThanOrEqual(4);
+    const r2 = summaries.find((s) => s.route_short_name === '2');
+    const r17 = summaries.find((s) => s.route_short_name === '17');
+
+    expect(r2).toBeDefined();
+    expect(r2!.vehiclesOnLineCount).toBe(1);
+    expect(r2!.nearbyVehiclesCount).toBe(1);
+    expect(r2!.closestDistanceMeters).toBeLessThan(500);
+
+    expect(r17).toBeDefined();
+    expect(r17!.vehiclesOnLineCount).toBe(1);
+    expect(r17!.nearbyVehiclesCount).toBe(1);
   });
 });

@@ -249,10 +249,13 @@ export async function notificationTick(env: Env): Promise<void> {
             actualCommuteMinutes = best.totalDurationMinutes;
             const leg0 = best.legs[0];
             if (leg0?.firstVehicleEtaMinutes != null) {
+              const onLine = leg0.vehiclesOnLineCount ? ` (${leg0.vehiclesOnLineCount} на рейсе)` : '';
+              const near = leg0.nearbyVehiclesCount ? `, ${leg0.nearbyVehiclesCount} у остановки` : '';
+              const dist = leg0.closestVehicleDistanceMeters ? ` · ${leg0.closestVehicleDistanceMeters} м` : '';
               if (dest === 'sports') {
-                vehicleNote = `17-й через ${leg0.firstVehicleEtaMinutes} мин`;
+                vehicleNote = `17-й через ${leg0.firstVehicleEtaMinutes} мин${dist}${onLine}${near}`;
               } else {
-                vehicleNote = `Ближайший: ${leg0.chosenRouteName} через ${leg0.firstVehicleEtaMinutes} мин`;
+                vehicleNote = `Ближайший №${leg0.chosenRouteName} через ${leg0.firstVehicleEtaMinutes} мин${dist}${onLine}${near}`;
               }
             }
           }

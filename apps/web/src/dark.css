@@ -312,3 +312,43 @@ body.dark-theme {
   background: #3b2c15;
   color: #fbbf24;
 }
+
+.dark-theme .tracked-trolleys-box {
+  background: #1e2420;
+  border-color: #353d37;
+}
+.dark-theme .tracked-trolley-chip {
+  background: #252c27;
+  border-color: #38423b;
+}
+.dark-theme .trolley-badge {
+  color: #e7e9e4;
+}
+.dark-theme .trolley-online-count {
+  background: rgba(52, 211, 153, 0.15);
+  color: #34d399;
+}
+.dark-theme .trolley-marker-info {
+  color: #d1d5db;
+}
+.dark-theme .trolley-closest-info {
+  color: #93c5fd;
+}
+.dark-theme .commute-live-telemetry {
+  background: #1c221e;
+}
+.dark-theme .telemetry-val {
+  color: #e7e9e4;
+}
+.dark-theme .commute-closest-vehicle-bar {
+  background: rgba(147, 197, 253, 0.08);
+  color: #93c5fd;
+}
+.dark-theme .commute-closest-vehicle-bar b {
+  color: #bfdbfe;
+}
+.dark-theme .vehicle-fleet-num {
+  background: rgba(255, 255, 255, 0.06);
+  color: #9ca3af;
+}
+

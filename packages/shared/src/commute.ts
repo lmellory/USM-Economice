@@ -8,6 +8,7 @@ import {
   TransitStop,
   TripStopTime,
   VehiclePosition,
+  TrackedTrolleySummary,
 } from './types.js';
 
 export function haversineDistanceMeters(
@@ -79,7 +80,21 @@ export function calculateLegWaitTime(
     }
     if (leg.mode === 'fixed_route') {
       if (leg.route_id != null && v.route_id === leg.route_id) return true;
-      if (leg.route_short_name && String(v.label || '').includes(leg.route_short_name)) return true;
+      if (
+        leg.route_short_name &&
+        context.candidateTrolleyRoutes?.some(
+          (r) => r.route_id === v.route_id && r.route_short_name === leg.route_short_name
+        )
+      ) {
+        return true;
+      }
+      if (leg.route_short_name && v.route_id === Number(leg.route_short_name)) return true;
+      if (
+        leg.route_short_name &&
+        (v.label === leg.route_short_name || v.label === `TR-${leg.route_short_name}`)
+      ) {
+        return true;
+      }
       return false;
     }
     if (leg.mode === 'any_trolleybus') {
@@ -223,6 +238,30 @@ export function calculateLegWaitTime(
   // Sort candidates by arrival time at boarding stop
   candidates.sort((a, b) => a.etaMinuteOfDay - b.etaMinuteOfDay);
 
+  const vehiclesOnLineCount = validVehicles.length;
+
+  // Calculate distance of valid vehicles to the boarding stop
+  const boardStop = context.stops?.find((s) => s.stop_id === leg.board_stop_id);
+  let nearbyVehiclesCount = 0;
+  let minBoardDist = Infinity;
+
+  if (boardStop) {
+    for (const v of validVehicles) {
+      const d = haversineDistanceMeters(
+        v.latitude,
+        v.longitude,
+        boardStop.stop_lat,
+        boardStop.stop_lon
+      );
+      if (d < minBoardDist) {
+        minBoardDist = d;
+      }
+      if (d <= 2500) {
+        nearbyVehiclesCount++;
+      }
+    }
+  }
+
   // Pick vehicle that arrives at or after passengerReadyMinute
   // (or closest one if all are slightly early but passenger is already on the way)
   const chosen =
@@ -240,6 +279,9 @@ export function calculateLegWaitTime(
       travelMinutes,
       firstVehicleEtaMinutes: chosen.etaMinutesFromNow,
       vehicleLabel: chosen.vehicle.label,
+      closestVehicleDistanceMeters: minBoardDist < Infinity ? Math.round(minBoardDist) : undefined,
+      vehiclesOnLineCount,
+      nearbyVehiclesCount,
       source: chosen.source,
     };
   }
@@ -257,6 +299,8 @@ export function calculateLegWaitTime(
     alightStopName: alightName,
     waitingMinutes: defaultFallbackWait,
     travelMinutes,
+    vehiclesOnLineCount: 0,
+    nearbyVehiclesCount: 0,
     source,
   };
 }
@@ -337,6 +381,8 @@ export function calculateCommuteOption(
   const sourceLabel =
     optionSource === 'live' ? 'по GPS' : optionSource === 'schedule' ? 'по расписанию' : 'примерно';
 
+  const firstLeg = legResults[0];
+
   return {
     id: option.id,
     name: option.name,
@@ -352,6 +398,11 @@ export function calculateCommuteOption(
     source: optionSource,
     sourceLabel,
     legs: legResults,
+    vehiclesOnLineCount: firstLeg ? firstLeg.vehiclesOnLineCount : 0,
+    nearbyVehiclesCount: firstLeg ? firstLeg.nearbyVehiclesCount : 0,
+    closestVehicleDistanceMeters: firstLeg?.closestVehicleDistanceMeters,
+    closestVehicleEtaMinutes: firstLeg?.firstVehicleEtaMinutes,
+    closestVehicleLabel: firstLeg?.vehicleLabel,
   };
 }
 
@@ -386,6 +437,111 @@ export function calculateCommuteOptionsForDestination(
     results[bestIdx].isRecommended = true;
   } else if (results.length > 0) {
     results[0].isRecommended = true;
+  }
+
+  return results;
+}
+
+/**
+ * Summarizes real-time status of user-relevant trolleybuses (e.g. Route 2, 17, 4, 22).
+ * Answers the user questions: "how many on duty/line?" and "how many near the marker/stop?"
+ */
+export function summarizeTrackedTrolleys(
+  options: CommuteOption[],
+  context: CommuteCalculationContext
+): TrackedTrolleySummary[] {
+  const baseTracked = [
+    { route_short_name: '2', destination: 'university' as DestinationType, label: '№2 до USM' },
+    { route_short_name: '17', destination: 'sports' as DestinationType, label: '№17 Спорт' },
+    { route_short_name: '4', destination: 'university' as DestinationType, label: '№4 Центр' },
+    { route_short_name: '22', destination: 'university' as DestinationType, label: '№22 Дачия' },
+  ];
+
+  // Include any extra routes configured in user's commute options
+  for (const opt of options) {
+    for (const leg of opt.legs || []) {
+      if (
+        leg.route_short_name &&
+        !baseTracked.some((b) => b.route_short_name === leg.route_short_name)
+      ) {
+        baseTracked.push({
+          route_short_name: leg.route_short_name,
+          destination: opt.destination,
+          label: `№${leg.route_short_name}`,
+        });
+      }
+    }
+  }
+
+  const nowMs = context.nowMs;
+  const validVehicles = (context.vehicles || []).filter((v) => {
+    const ageMs = nowMs - Date.parse(v.timestamp);
+    return !isNaN(ageMs) && ageMs <= 180_000 && ageMs >= -60_000;
+  });
+
+  const results: TrackedTrolleySummary[] = [];
+
+  for (const item of baseTracked) {
+    const routeVehicles = validVehicles.filter((v) => {
+      if (
+        context.candidateTrolleyRoutes?.some(
+          (r) => r.route_id === v.route_id && r.route_short_name === item.route_short_name
+        )
+      ) {
+        return true;
+      }
+      if (v.route_id === Number(item.route_short_name)) return true;
+      if (v.label === item.route_short_name || v.label === `TR-${item.route_short_name}`) return true;
+      return false;
+    });
+
+    // Reference boarding stop for this destination
+    let boardStop = context.stops?.find((s) => s.stop_id === 101); // Dacia / Cuza Vodă default
+    const matchingOption = options.find((o) => o.destination === item.destination);
+    if (matchingOption?.legs?.[0]?.board_stop_id) {
+      const found = context.stops?.find((s) => s.stop_id === matchingOption.legs[0].board_stop_id);
+      if (found) boardStop = found;
+    }
+
+    let nearbyCount = 0;
+    let minDistance = Infinity;
+    let closestVeh: VehiclePosition | undefined;
+
+    if (boardStop) {
+      for (const v of routeVehicles) {
+        const d = haversineDistanceMeters(
+          v.latitude,
+          v.longitude,
+          boardStop.stop_lat,
+          boardStop.stop_lon
+        );
+        if (d < minDistance) {
+          minDistance = d;
+          closestVeh = v;
+        }
+        if (d <= 2500) {
+          nearbyCount++;
+        }
+      }
+    }
+
+    let etaMin: number | undefined;
+    if (minDistance < Infinity) {
+      if (minDistance <= 200) etaMin = 1;
+      else if (minDistance <= 5000) etaMin = Math.max(1, Math.round(minDistance / 350));
+    }
+
+    results.push({
+      route_short_name: item.route_short_name,
+      destination: item.destination,
+      label: item.label,
+      vehiclesOnLineCount: routeVehicles.length,
+      nearbyVehiclesCount: nearbyCount,
+      closestDistanceMeters: minDistance < Infinity ? Math.round(minDistance) : undefined,
+      closestEtaMinutes: etaMin,
+      closestVehicleLabel: closestVeh?.label,
+      boardStopName: boardStop?.stop_name || 'Cuza Vodă',
+    });
   }
 
   return results;

@@ -29,6 +29,7 @@ import {
   CommuteOptionResult,
   DestinationType,
   RoutineResult,
+  TrackedTrolleySummary,
   shortDays,
 } from '../lib/plan.js';
 import { dateParts, fmtDate, min, TZ } from '../lib/time.js';
@@ -107,6 +108,7 @@ export function HomeView({
 
   const [commuteLive, setCommuteLive] = React.useState<{
     options: CommuteOptionResult[];
+    trackedTrolleys?: TrackedTrolleySummary[];
     liveStatus?: any;
     updatedAt: number;
   } | null>(null);
@@ -123,6 +125,7 @@ export function HomeView({
       );
       setCommuteLive({
         options: res.options || [],
+        trackedTrolleys: res.trackedTrolleys || [],
         liveStatus: res.liveStatus,
         updatedAt: Date.now(),
       });
@@ -136,6 +139,11 @@ export function HomeView({
 
   React.useEffect(() => {
     fetchCommute();
+    // Auto-refresh real-time vehicles every 25 seconds
+    const interval = setInterval(() => {
+      fetchCommute();
+    }, 25000);
+    return () => clearInterval(interval);
   }, [fetchCommute]);
 
   React.useEffect(() => {
@@ -441,6 +449,39 @@ export function HomeView({
 
           {targetCampus ? (
             <div className="commute-options-container">
+              {commuteLive?.trackedTrolleys && commuteLive.trackedTrolleys.length > 0 && (
+                <div className="tracked-trolleys-box">
+                  <div className="tracked-trolleys-title">
+                    <span className="live-pulse-dot" />
+                    <span>Троллейбусы на линии</span>
+                  </div>
+                  <div className="tracked-trolleys-grid">
+                    {commuteLive.trackedTrolleys.map((t) => (
+                      <div key={t.route_short_name} className="tracked-trolley-chip">
+                        <div className="trolley-chip-top">
+                          <strong className="trolley-badge">№{t.route_short_name}</strong>
+                          <span className="trolley-online-count">
+                            {t.vehiclesOnLineCount} на рейсе
+                          </span>
+                        </div>
+                        <div className="trolley-chip-body">
+                          <span className="trolley-marker-info">
+                            📍 {t.nearbyVehiclesCount > 0 ? `${t.nearbyVehiclesCount} у метки` : 'нет у метки'}
+                          </span>
+                          {t.closestDistanceMeters != null ? (
+                            <span className="trolley-closest-info">
+                              {t.closestDistanceMeters} м (~{t.closestEtaMinutes} мин){t.closestVehicleLabel ? ` · борт ${t.closestVehicleLabel}` : ''}
+                            </span>
+                          ) : (
+                            <span className="trolley-closest-none">ожидание GPS</span>
+                          )}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+
               {commuteLive?.options && commuteLive.options.length > 0 ? (
                 <div className={`commute-options-grid ${isSports ? 'single' : 'double'}`}>
                   {commuteLive.options.map((opt) => (
@@ -489,6 +530,30 @@ export function HomeView({
                             <span className="metric-label">Прибудешь:</span>
                             <span className="metric-value">около {opt.arrivalEstimated}</span>
                           </div>
+
+                          <div className="commute-live-telemetry">
+                            <div className="telemetry-item">
+                              <span className="telemetry-label">На рейсе:</span>
+                              <strong className="telemetry-val">
+                                {opt.vehiclesOnLineCount ?? 0} машин
+                              </strong>
+                            </div>
+                            <div className="telemetry-item">
+                              <span className="telemetry-label">У метки:</span>
+                              <strong className="telemetry-val">
+                                {opt.nearbyVehiclesCount ?? 0} шт.
+                              </strong>
+                            </div>
+                          </div>
+
+                          {opt.closestVehicleDistanceMeters != null && (
+                            <div className="commute-closest-vehicle-bar">
+                              <span>Ближайший: <b>{opt.closestVehicleDistanceMeters} м</b> (~{opt.closestVehicleEtaMinutes} мин)</span>
+                              {opt.closestVehicleLabel && (
+                                <span className="vehicle-fleet-num">борт {opt.closestVehicleLabel}</span>
+                              )}
+                            </div>
+                          )}
 
                           <div className="commute-card-footer">
                             <span className={`source-pill ${opt.source}`}>
