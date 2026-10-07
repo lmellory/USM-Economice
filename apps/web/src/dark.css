@@ -1,38 +1,191 @@
-body.dark-theme{background:#171b18;color:#e7e9e4}
-.dark-theme .app{color:#e7e9e4}
-.dark-theme .week-card,.dark-theme .class-card,.dark-theme .add-task,.dark-theme .task-card,.dark-theme .setting-card,.dark-theme .modal,.dark-theme .hw-empty{background:#222824;border-color:#353d37;color:#e7e9e4}
-.dark-theme .class-card.online{background:#252c26;border-color:#353d37}
-.dark-theme .date-pill strong,.dark-theme .week-head b,.dark-theme .class-title,.dark-theme .task-main>b,.dark-theme .section-heading h2,.dark-theme .modal header h2,.dark-theme .setting-card h3,.dark-theme .add-task b{color:#e7e9e4}
-.dark-theme .week-arrows button,.dark-theme .empty-day,.dark-theme .hw-tabs button{background:#292f2a;border-color:#3b433d;color:#aeb7ae}
-.dark-theme .bottom-nav{background:#1d231fee;border-color:#353d37}
-.dark-theme .date-pill.chosen{background:#758a78}
-.dark-theme .deadline-banner{background:#382f28}
-.dark-theme .deadline-icon,.dark-theme .icon-chip{background:#34342f}
-.dark-theme .journey{background:#332b25}.dark-theme .sleep{background:#292932}
-.dark-theme .class-index,.dark-theme .time-col strong,.dark-theme .task-main>small,.dark-theme .due-row time{color:#aeb6ae}
-.dark-theme .time-col,.dark-theme .due-row,.dark-theme .toggle-row{border-color:#343c36}
-.dark-theme .time-col{border-right-color:#343c36}.dark-theme .timeline-dot,.dark-theme .class-card.online .timeline-dot{background:#252c26}
-.dark-theme .modal input,.dark-theme .modal textarea,.dark-theme .modal select,.dark-theme .setting-field input,.dark-theme .setting-field select{background:#1b211d;border-color:#3a443c;color:#e7e9e4}
-.dark-theme .subject-chips button,.dark-theme .week-arrows button{background:#292f2a;border-color:#3b433d;color:#bbc4bb}
-.dark-theme .subject-chips button.on,.dark-theme .hw-tabs button.selected{background:#536956;color:#f1f3ef;border-color:#687f6b}
-.dark-theme .notice{background:#342f28;color:#d1b99e}
-.dark-theme .toggle-row,.dark-theme .setting-field{color:#c3c9c2}
-.dark-theme .empty-sun,.dark-theme .hw-empty>span{color:#9baa99}
-.dark-theme .toast{background:#35443a}
-.dark-theme .theme-picker button{background:#292f2a;border-color:#3b433d;color:#c3c9c2}
-.dark-theme .theme-picker button.selected{background:#536956;border-color:#758a78;color:#fff}
-.dark-theme .live-badge{background:#3b322a;color:#c9a98e}
-.dark-theme .live-badge.on{background:#233527;color:#89c493}
-.dark-theme .journey-target{color:#d5cdc2}
-.dark-theme .leave-row{background:#3b322a;color:#debfa4}
-.dark-theme .leave-row small{color:#ab9888}
-.dark-theme .route-pills span{background:#3b322a;border-color:#534438;color:#e1cbb8}
+body.dark-theme {
+  background: #171b18;
+  color: #e7e9e4;
+}
+.dark-theme .app {
+  color: #e7e9e4;
+}
+.dark-theme .week-card,
+.dark-theme .class-card,
+.dark-theme .add-task,
+.dark-theme .task-card,
+.dark-theme .setting-card,
+.dark-theme .modal,
+.dark-theme .hw-empty {
+  background: #222824;
+  border-color: #353d37;
+  color: #e7e9e4;
+}
+.dark-theme .class-card.online {
+  background: #252c26;
+  border-color: #353d37;
+}
+.dark-theme .date-pill strong,
+.dark-theme .week-head b,
+.dark-theme .class-title,
+.dark-theme .task-main > b,
+.dark-theme .section-heading h2,
+.dark-theme .modal header h2,
+.dark-theme .setting-card h3,
+.dark-theme .add-task b {
+  color: #e7e9e4;
+}
+.dark-theme .week-arrows button,
+.dark-theme .empty-day,
+.dark-theme .hw-tabs button {
+  background: #292f2a;
+  border-color: #3b433d;
+  color: #aeb7ae;
+}
+.dark-theme .bottom-nav {
+  background: #1d231fee;
+  border-color: #353d37;
+}
+.dark-theme .date-pill.chosen {
+  background: #758a78;
+}
+.dark-theme .deadline-banner {
+  background: #382f28;
+}
+.dark-theme .deadline-icon,
+.dark-theme .icon-chip {
+  background: #34342f;
+}
+.dark-theme .journey {
+  background: #332b25;
+}
+.dark-theme .sleep {
+  background: #292932;
+}
+.dark-theme .class-index,
+.dark-theme .time-col strong,
+.dark-theme .task-main > small,
+.dark-theme .due-row time {
+  color: #aeb6ae;
+}
+.dark-theme .time-col,
+.dark-theme .due-row,
+.dark-theme .toggle-row {
+  border-color: #343c36;
+}
+.dark-theme .time-col {
+  border-right-color: #343c36;
+}
+.dark-theme .timeline-dot,
+.dark-theme .class-card.online .timeline-dot {
+  background: #252c26;
+}
+.dark-theme .modal input,
+.dark-theme .modal textarea,
+.dark-theme .modal select,
+.dark-theme .setting-field input,
+.dark-theme .setting-field select {
+  background: #1b211d;
+  border-color: #3a443c;
+  color: #e7e9e4;
+}
+.dark-theme .subject-chips button,
+.dark-theme .week-arrows button {
+  background: #292f2a;
+  border-color: #3b433d;
+  color: #bbc4bb;
+}
+.dark-theme .subject-chips button.on,
+.dark-theme .hw-tabs button.selected {
+  background: #536956;
+  color: #f1f3ef;
+  border-color: #687f6b;
+}
+.dark-theme .notice {
+  background: #342f28;
+  color: #d1b99e;
+}
+.dark-theme .toggle-row,
+.dark-theme .setting-field {
+  color: #c3c9c2;
+}
+.dark-theme .empty-sun,
+.dark-theme .hw-empty > span {
+  color: #9baa99;
+}
+.dark-theme .toast {
+  background: #35443a;
+}
+.dark-theme .theme-picker button {
+  background: #292f2a;
+  border-color: #3b433d;
+  color: #c3c9c2;
+}
+.dark-theme .theme-picker button.selected {
+  background: #536956;
+  border-color: #758a78;
+  color: #fff;
+}
+.dark-theme .live-badge {
+  background: #3b322a;
+  color: #c9a98e;
+}
+.dark-theme .live-badge.on {
+  background: #233527;
+  color: #89c493;
+}
+.dark-theme .journey-target {
+  color: #d5cdc2;
+}
+.dark-theme .leave-row {
+  background: #3b322a;
+  color: #debfa4;
+}
+.dark-theme .leave-row small {
+  color: #ab9888;
+}
+.dark-theme .route-pills span {
+  background: #3b322a;
+  border-color: #534438;
+  color: #e1cbb8;
+}
 
-
-.dark-theme .duration-chips button{background:#232b25;border-color:#3a443c;color:#a8b2a8}
-.dark-theme .duration-chips button.on{border-color:#5a7b60;background:#263629;color:#b2d4b8}
-.dark-theme .duration-chips button.clear{background:#2d2621;border-color:#4d3d33;color:#d8a685}
-.dark-theme .class-card.current{border-color:#6c8a70;background:linear-gradient(135deg,#242c26 0%,#1b241e 100%);box-shadow:0 0 0 2px #6c8a704d,0 8px 24px #00000055;animation:darkCurrentPulse 2.5s ease-in-out infinite}
-@keyframes darkCurrentPulse{0%,100%{box-shadow:0 0 0 2px #6c8a704d,0 8px 24px #00000055}50%{box-shadow:0 0 0 3.5px #6c8a7088,0 12px 30px #00000077}}
-.dark-theme .current-badge{background:#26382a;color:#94cca0}
-.dark-theme .current-dot{background:#52cc6c;box-shadow:0 0 6px #52cc6c}
+.dark-theme .duration-chips button {
+  background: #232b25;
+  border-color: #3a443c;
+  color: #a8b2a8;
+}
+.dark-theme .duration-chips button.on {
+  border-color: #5a7b60;
+  background: #263629;
+  color: #b2d4b8;
+}
+.dark-theme .duration-chips button.clear {
+  background: #2d2621;
+  border-color: #4d3d33;
+  color: #d8a685;
+}
+.dark-theme .class-card.current {
+  border-color: #6c8a70;
+  background: linear-gradient(135deg, #242c26 0%, #1b241e 100%);
+  box-shadow:
+    0 0 0 2px #6c8a704d,
+    0 8px 24px #00000055;
+  animation: darkCurrentPulse 2.5s ease-in-out infinite;
+}
+@keyframes darkCurrentPulse {
+  0%,
+  100% {
+    box-shadow:
+      0 0 0 2px #6c8a704d,
+      0 8px 24px #00000055;
+  }
+  50% {
+    box-shadow:
+      0 0 0 3.5px #6c8a7088,
+      0 12px 30px #00000077;
+  }
+}
+.dark-theme .current-badge {
+  background: #26382a;
+  color: #94cca0;
+}
+.dark-theme .current-dot {
+  background: #52cc6c;
+  box-shadow: 0 0 6px #52cc6c;
+}

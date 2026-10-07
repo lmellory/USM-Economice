@@ -1,23 +1,35 @@
 # Тихий план — Telegram Mini App
 
-Личное расписание, домашние задания, утренний план и транспорт. Для публикации проект использует React/Vite, Cloudflare Worker и D1. Worker обслуживает интерфейс и API, проверяет Telegram `initData`, принимает webhook бота и запускает фоновые проверки по Cron.
+Личное расписание, домашние задания, утренний план и дорога до университета. Приложение построено на React 19 + Vite, Cloudflare Worker и базе данных Cloudflare D1 (SQLite). Worker отдаёт интерфейс и API, проверяет Telegram `initData`, обрабатывает webhook бота и запускает проверки по расписанию (Cron).
 
-Пошаговый деплой из Windows 10 через приватный GitHub-репозиторий и Cloudflare Workers Builds — в [DEPLOY.md](DEPLOY.md). Домен и Google Cloud Console не нужны.
+## Структура проекта
 
-## Основные части
+- `apps/web` — React 19 + Vite Mini App: интерфейс расписания, домашние задания, утренний план, настройки, темы (светлая, тёмная, розовая).
+- `packages/shared` — чистые функции расчёта подъёма, сна, выхода, чётности недели и часового пояса Кишинёва с тестами `vitest`.
+- `worker` — Cloudflare Worker: роутер API, авторизация Telegram `initData`, webhook, крон-уведомления и интеграция с Tranzy.
+- `worker/migrations` — SQL-миграции Cloudflare D1.
 
-- `apps/web` — React Mini App на русском, поддерживает темы Telegram, переключатель светлой/тёмной темы, календарь, расписание, вкладку ДЗ, настройки и план утра.
-- `worker/src/index.ts` — Cloudflare Worker: проверка Telegram `initData`, API приложения, webhook и задачи по Cron.
-- `worker/migrations` — SQLite миграции для Cloudflare D1.
-- `worker/wrangler.toml` — имя Worker, статика приложения, D1 binding, Cron и настройки транспортного адаптера.
-- `scripts/set-webhook.mjs` — подключение webhook к опубликованному Worker из Windows PowerShell.
-- `apps/api` и Docker-файлы — предыдущий Fastify/PostgreSQL вариант для VPS; инструкция Cloudflare их не использует.
+## Команды
 
-## Сборка и ограничения
+```bash
+# Установка зависимостей
+npm install
 
-`npm run typecheck` проверяет TypeScript для API, интерфейса и Worker. `npm run build -w @usm/web` собирает интерфейс для Cloudflare Assets. Для публикации нужен доступ Cloudflare Workers Builds к приватному GitHub репозиторию.
+# Запуск тестов
+npm test
 
-Данные из Mini App сохраняются только при запуске через Telegram. Без Telegram `initData` API возвращает отказ авторизации. Локальный браузерный предпросмотр не является отдельной тестовой учётной записью.
+# Проверка типов TypeScript во всех пакетах
+npm run typecheck
 
-Оценка поездки около 30 минут помечается как приблизительная; пока не подключён проверенный маршрутизатор с остановками и пересадками. Живые позиции транспорта не считаются доказательством пробок или ETA.
-# USM-Economice
+# Сборка веб-приложения
+npm run build
+
+# Форматирование кода
+npm run format
+
+# Деплой в Cloudflare
+npm run deploy:cloudflare
+
+# Применение миграций D1
+npm run migrate:cloudflare
+```

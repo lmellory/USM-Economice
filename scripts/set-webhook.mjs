@@ -8,7 +8,11 @@ if (!token || !secret || !workerUrl) {
 const response = await fetch(`https://api.telegram.org/bot${token}/setWebhook`, {
   method: 'POST',
   headers: { 'content-type': 'application/json' },
-  body: JSON.stringify({ url: `${workerUrl}/telegram/webhook`, secret_token: secret, allowed_updates: ['message'] }),
+  body: JSON.stringify({
+    url: `${workerUrl}/telegram/webhook`,
+    secret_token: secret,
+    allowed_updates: ['message'],
+  }),
 });
 const result = await response.json();
 if (!response.ok || !result.ok) {

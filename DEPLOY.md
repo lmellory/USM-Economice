@@ -13,7 +13,7 @@
 
 ## 1. Создай бота и сохрани необходимые значения
 
-В Telegram открой [@BotFather](https://t.me/BotFather), отправь `/newbot`, задай имя и username, сохрани токен `BOT_TOKEN` в менеджере паролей. 
+В Telegram открой [@BotFather](https://t.me/BotFather), отправь `/newbot`, задай имя и username, сохрани токен `BOT_TOKEN` в менеджере паролей.
 Никому не пересылай его.
 
 Создай длинный webhook secret из латинских букв, цифр, `_` и `-` (от 32 символов). Он должен отличаться от bot token.
@@ -53,15 +53,15 @@ Cloudflare сам устанавливает зависимости, выпол�
 
 В Cloudflare открой Worker `usm-life` → **Settings → Variables and Secrets**. Добавь runtime-переменные:
 
-| Имя | Значение |
-|---|---|
-| `BOT_TOKEN` | токен из BotFather, тип Secret |
-| `TELEGRAM_WEBHOOK_SECRET` | созданный webhook secret, тип Secret |
-| `MINI_APP_URL` | `https://usm-life.<твой-поддомен>.workers.dev` |
-| `TRANZY_API_KEY` | *(опционально)* API-ключ Tranzy, тип Secret |
-| `TRANZY_VEHICLES_URL` | `https://api.tranzy.ai/v1/opendata/vehicles` (уже задан в `wrangler.toml`) |
-| `TRANZY_REFRESH_MINUTES` | `5` (период опроса транспорта в минутах, уже задан в `wrangler.toml`) |
-| `TRANZY_AGENCY_ID` | *(опционально)* ID агентства, если требуется зафиксировать конкретного оператора вручную |
+| Имя                       | Значение                                                                                 |
+| ------------------------- | ---------------------------------------------------------------------------------------- |
+| `BOT_TOKEN`               | токен из BotFather, тип Secret                                                           |
+| `TELEGRAM_WEBHOOK_SECRET` | созданный webhook secret, тип Secret                                                     |
+| `MINI_APP_URL`            | `https://usm-life.<твой-поддомен>.workers.dev`                                           |
+| `TRANZY_API_KEY`          | _(опционально)_ API-ключ Tranzy, тип Secret                                              |
+| `TRANZY_VEHICLES_URL`     | `https://api.tranzy.ai/v1/opendata/vehicles` (уже задан в `wrangler.toml`)               |
+| `TRANZY_REFRESH_MINUTES`  | `5` (период опроса транспорта в минутах, уже задан в `wrangler.toml`)                    |
+| `TRANZY_AGENCY_ID`        | _(опционально)_ ID агентства, если требуется зафиксировать конкретного оператора вручную |
 
 В разделе **Bindings** должен быть D1 binding `DB`, привязанный к базе `usm-life`. Он описан в `worker/wrangler.toml`; если Cloudflare предложит подтверждение binding, выбери именно созданную базу.
 

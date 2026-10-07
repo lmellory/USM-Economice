@@ -2,20 +2,24 @@
   "name": "usm-life-miniapp",
   "private": true,
   "workspaces": [
-    "apps/*",
+    "apps/web",
+    "packages/*",
     "worker"
   ],
   "scripts": {
-    "dev": "concurrently -k \"npm:dev -w @usm/api\" \"npm:dev -w @usm/web\"",
+    "dev": "npm run dev -w @usm/web",
     "build": "npm run build -w @usm/web",
-    "build:vps": "npm run build -w @usm/api && npm run build -w @usm/web",
-    "typecheck": "npm run typecheck -w @usm/api && npm run typecheck -w @usm/web && npm run typecheck -w @usm/worker",
+    "typecheck": "npm run typecheck -w @usm/shared && npm run typecheck -w @usm/web && npm run typecheck -w @usm/worker",
+    "test": "vitest run",
+    "format": "prettier --write .",
+    "format:check": "prettier --check .",
     "deploy:cloudflare": "npm run build -w @usm/web && npm run deploy -w @usm/worker",
     "migrate:cloudflare": "npm run migrate -w @usm/worker"
   },
   "devDependencies": {
-    "concurrently": "^9.1.2",
-    "typescript": "^5.8.3"
+    "prettier": "^3.5.3",
+    "typescript": "^5.8.3",
+    "vitest": "^3.0.7"
   },
   "overrides": {
     "shell-quote": "^1.12.0"
