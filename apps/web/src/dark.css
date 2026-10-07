@@ -32,3 +32,7 @@ body.dark-theme{background:#171b18;color:#e7e9e4}
 .dark-theme .duration-chips button{background:#232b25;border-color:#3a443c;color:#a8b2a8}
 .dark-theme .duration-chips button.on{border-color:#5a7b60;background:#263629;color:#b2d4b8}
 .dark-theme .duration-chips button.clear{background:#2d2621;border-color:#4d3d33;color:#d8a685}
+.dark-theme .class-card.current{border-color:#6c8a70;background:linear-gradient(135deg,#242c26 0%,#1b241e 100%);box-shadow:0 0 0 2px #6c8a704d,0 8px 24px #00000055;animation:darkCurrentPulse 2.5s ease-in-out infinite}
+@keyframes darkCurrentPulse{0%,100%{box-shadow:0 0 0 2px #6c8a704d,0 8px 24px #00000055}50%{box-shadow:0 0 0 3.5px #6c8a7088,0 12px 30px #00000077}}
+.dark-theme .current-badge{background:#26382a;color:#94cca0}
+.dark-theme .current-dot{background:#52cc6c;box-shadow:0 0 6px #52cc6c}

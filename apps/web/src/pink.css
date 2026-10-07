@@ -1,0 +1,58 @@
+body.pink-theme{background:#fdf5f7;color:#3b242a}
+.pink-theme .app{color:#3b242a}
+.pink-theme .week-card,.pink-theme .class-card,.pink-theme .add-task,.pink-theme .task-card,.pink-theme .setting-card,.pink-theme .modal,.pink-theme .hw-empty{background:#ffffff;border-color:#f4dbe2;color:#3b242a;box-shadow:0 4px 16px #c4647b0e}
+.pink-theme .class-card.online{background:#fdf1f4;border-color:#f7d8e1}
+.pink-theme .date-pill strong,.pink-theme .week-head b,.pink-theme .class-title,.pink-theme .task-main>b,.pink-theme .section-heading h2,.pink-theme .modal header h2,.pink-theme .setting-card h3,.pink-theme .add-task b{color:#3b242a}
+.pink-theme .brand-mark{background:#fae4eb;color:#c45b76}
+.pink-theme .greeting h1 em{color:#c45b76}
+.pink-theme .avatar{background:#f8dde5;color:#a43f5b}
+.pink-theme .week-arrows button,.pink-theme .empty-day,.pink-theme .hw-tabs button{background:#fdf3f5;border-color:#f2d4dc;color:#8c5d6a}
+.pink-theme .bottom-nav{background:#ffffffee;border-color:#f4dbe2}
+.pink-theme .bottom-nav button.active{color:#c45b76}
+.pink-theme .bottom-nav button.homework-nav.active{color:#d86985}
+.pink-theme .date-pill.chosen{background:#d86985;color:#ffffff}
+.pink-theme .date-pill.today strong{color:#c45b76}
+.pink-theme .date-pill.chosen span,.pink-theme .date-pill.chosen strong{color:#ffffff}
+.pink-theme .deadline-banner{background:#fae8ed}
+.pink-theme .deadline-banner strong{color:#8f334a}
+.pink-theme .deadline-banner p{color:#a8586e}
+.pink-theme .deadline-icon,.pink-theme .icon-chip{background:#f7d5df;color:#b54763}
+.pink-theme .peach{background:#fbe6eb;color:#ba516c}
+.pink-theme .lavender{background:#f7e6f3;color:#9f4f89}
+.pink-theme .journey{background:#fae8ee}
+.pink-theme .sleep{background:#f6ebf8}
+.pink-theme .class-index,.pink-theme .time-col strong,.pink-theme .task-main>small,.pink-theme .due-row time{color:#8f6773}
+.pink-theme .time-col,.pink-theme .due-row,.pink-theme .toggle-row{border-color:#f5dde3}
+.pink-theme .time-col{border-right-color:#f5dde3}
+.pink-theme .timeline-dot{background:#ffffff;border-color:#e098aa}
+.pink-theme .class-card.online .time-col{border-right-color:#f7d8e1}
+.pink-theme .class-card.online .timeline-dot{background:#fdf1f4;border-color:#e098aa}
+.pink-theme .modal input,.pink-theme .modal textarea,.pink-theme .modal select,.pink-theme .setting-field input,.pink-theme .setting-field select{background:#fff8fa;border-color:#edd1d8;color:#3b242a}
+.pink-theme .setting-field>div span{background:#fbf0f3;border-color:#edd1d8;color:#8f6773}
+.pink-theme .subject-chips button,.pink-theme .week-arrows button{background:#fdf3f5;border-color:#f2d4dc;color:#8c5d6a}
+.pink-theme .subject-chips button.on,.pink-theme .hw-tabs button.selected{background:#d86985;color:#ffffff;border-color:#d86985}
+.pink-theme .notice{background:#fbf0f4;color:#9d4860}
+.pink-theme .toggle-row,.pink-theme .setting-field{color:#68414d}
+.pink-theme .empty-sun,.pink-theme .hw-empty>span{color:#d67a92}
+.pink-theme .toast{background:#4a222d;color:#ffffff}
+.pink-theme .primary-btn{background:#d86985;color:#ffffff}
+.pink-theme .check-task.checked{background:#d86985;border-color:#d86985}
+.pink-theme .toggle.on{background:#d86985}
+.pink-theme .reminder-setting.on{background:#faeaf0;color:#ba4a67;border-color:#f2cdd7}
+.pink-theme .reminder-setting.on .switch{background:#d86985}
+.pink-theme .theme-picker button{background:#fdf3f5;border-color:#f2d4dc;color:#8c5d6a}
+.pink-theme .theme-picker button.selected{background:#d86985;border-color:#cb5976;color:#ffffff;font-weight:600}
+.pink-theme .live-badge{background:#fae4eb;color:#b54763}
+.pink-theme .live-badge.on{background:#eef7ee;color:#4b8956}
+.pink-theme .journey-target{color:#5c3943}
+.pink-theme .leave-row{background:#f9e2e9;color:#8a364d}
+.pink-theme .leave-row small{color:#a45a6f}
+.pink-theme .route-pills span{background:#ffffffaa;border-color:#f0cdd6;color:#8a364d}
+.pink-theme .duration-chips button{background:#fdf3f5;border-color:#f2d4dc;color:#8c5d6a}
+.pink-theme .duration-chips button.on{border-color:#d86985;background:#faeaf0;color:#ba4a67}
+.pink-theme .duration-chips button.clear{background:#fff0f3;border-color:#f2cdd7;color:#c45b76}
+.pink-theme .today-link,.pink-theme .settings-head>button{color:#c45b76}
+.pink-theme .class-card.current{border-color:#d86985;background:linear-gradient(135deg,#ffffff 0%,#fff0f3 100%);box-shadow:0 0 0 2px #d8698544,0 8px 24px #c4647b20;animation:pinkCurrentPulse 2.5s ease-in-out infinite}
+@keyframes pinkCurrentPulse{0%,100%{box-shadow:0 0 0 2px #d8698544,0 8px 24px #c4647b20}50%{box-shadow:0 0 0 3.5px #d8698588,0 12px 30px #c4647b35}}
+.pink-theme .current-badge{background:#fce2e8;color:#a83652}
+.pink-theme .current-dot{background:#e04a6e;box-shadow:0 0 6px #e04a6e}
