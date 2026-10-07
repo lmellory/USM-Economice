@@ -10,7 +10,7 @@ import {
 import { handleHomework, json } from './homework.js';
 import { notificationTick } from './notifications.js';
 import { dbSettings, validatedSettings } from './settings.js';
-import { saveTransit, transit } from './transit.js';
+import { saveTransit, syncTranzyStops, transit } from './transit.js';
 import { getUserCommuteOptions, handleTransitRoutes } from './commute.js';
 import { Env } from './types.js';
 import { handleWebhook } from './webhook.js';
@@ -21,13 +21,18 @@ async function apiRequest(request: Request, env: Env, path: string): Promise<Res
     if (url.searchParams.has('refresh')) {
       await saveTransit(env);
     }
+    if (url.searchParams.has('refresh_stops')) {
+      await syncTranzyStops(env);
+    }
     const t = await env.DB.prepare('SELECT * FROM transit_state WHERE id=1').first<any>();
     const routes = await env.DB.prepare('SELECT route_id, route_short_name, route_type FROM tranzy_routes LIMIT 50').all<any>();
+    const stopsRow = await env.DB.prepare('SELECT count(*) as cnt FROM tranzy_stops').first<any>();
     return json({
       ok: true,
       service: 'usm-life-worker',
       transit: t,
       routesCount: routes.results?.length ?? 0,
+      stopsCount: stopsRow?.cnt ?? 0,
       routes: routes.results ?? [],
     });
   }

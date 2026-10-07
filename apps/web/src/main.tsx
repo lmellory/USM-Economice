@@ -1,6 +1,6 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { createRoot } from 'react-dom/client';
-import { BookOpen, CalendarDays, CircleAlert, GraduationCap, Settings, X } from 'lucide-react';
+import { BookOpen, CalendarDays, CircleAlert, GraduationCap, Map as MapIcon, Settings, X } from 'lucide-react';
 import './style.css';
 import './telegram.css';
 import './dark.css';
@@ -27,6 +27,7 @@ import { HomeworkModal } from './components/HomeworkModal.js';
 import { HomeworkView } from './components/HomeworkView.js';
 import { ScheduleView } from './components/ScheduleView.js';
 import { SettingsView } from './components/SettingsView.js';
+import { TransitView } from './components/TransitView.js';
 
 function getNowMinutes(): number {
   const f = new Intl.DateTimeFormat('en-GB', {
@@ -41,7 +42,7 @@ function getNowMinutes(): number {
 }
 
 export function App() {
-  const [view, setView] = useState<'home' | 'schedule' | 'hw' | 'settings'>('home');
+  const [view, setView] = useState<'home' | 'schedule' | 'hw' | 'map' | 'settings'>('home');
   const [selected, setSelected] = useState(new Date());
   const [weekOffset, setWeekOffset] = useState(0);
   const [hw, setHw] = useState<any[]>([]);
@@ -400,6 +401,13 @@ export function App() {
           onEdit={openHw}
           onDone={toggleDone}
         />
+      ) : view === 'map' ? (
+        <TransitView
+          vehicles={[]}
+          options={commuteOptions}
+          settings={settings}
+          request={request}
+        />
       ) : (
         <HomeView
           selected={selected}
@@ -456,6 +464,14 @@ export function App() {
             {hw.some((x) => !x.completed && x.due_date === todayKey) && <i />}
           </span>
           <span>ДЗ</span>
+        </button>
+        <button
+          type="button"
+          className={view === 'map' ? 'active map-nav' : ''}
+          onClick={() => navigate('map')}
+        >
+          <MapIcon size={20} />
+          <span>Карта</span>
         </button>
         <button
           type="button"

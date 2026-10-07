@@ -158,6 +158,79 @@ export async function transit(env: Env): Promise<TransitState> {
   }
 }
 
+export async function syncTranzyStops(env: Env): Promise<{ count: number; error?: string }> {
+  if (!env.TRANZY_API_KEY) {
+    return { count: 0, error: 'No TRANZY_API_KEY' };
+  }
+  try {
+    const vehiclesUrl = (
+      env.TRANZY_VEHICLES_URL || 'https://api.tranzy.ai/v1/opendata/vehicles'
+    ).trim();
+    const baseUrl = vehiclesUrl.replace(/\/vehicles(?:\?.*)?$/, '');
+
+    let agencyId = env.TRANZY_AGENCY_ID?.trim();
+    if (!agencyId) {
+      const ar = await fetch(`${baseUrl}/agency`, {
+        headers: { 'X-API-KEY': env.TRANZY_API_KEY },
+        signal: AbortSignal.timeout(6000),
+      });
+      if (ar.ok) {
+        const agencies: any = await ar.json();
+        const list = Array.isArray(agencies) ? agencies : [];
+        const matched =
+          list.find(
+            (a: any) =>
+              String(a.agency_timezone || '')
+                .toLowerCase()
+                .includes('chisinau') ||
+              /chisinau|chișinău|rtec|pua/i.test(String(a.agency_name || ''))
+          ) || list[0];
+        if (matched) agencyId = String(matched.agency_id);
+      }
+    }
+
+    const headers: Record<string, string> = { 'X-API-KEY': env.TRANZY_API_KEY };
+    if (agencyId) headers['X-Agency-Id'] = agencyId;
+
+    const stopsRes = await fetch(`${baseUrl}/stops`, {
+      headers,
+      signal: AbortSignal.timeout(10000),
+    });
+
+    if (!stopsRes.ok) {
+      return { count: 0, error: `HTTP ${stopsRes.status}` };
+    }
+
+    const stopsData: any = await stopsRes.json();
+    const stopsList: any[] = Array.isArray(stopsData) ? stopsData : (stopsData.data ?? []);
+    if (stopsList.length === 0) {
+      return { count: 0 };
+    }
+
+    const nowSec = Math.floor(Date.now() / 1000);
+    const stmts = stopsList.map((s: any) =>
+      env.DB.prepare(
+        'INSERT OR REPLACE INTO tranzy_stops(stop_id, stop_name, stop_desc, stop_lat, stop_lon, updated_at) VALUES(?,?,?,?,?,?)'
+      ).bind(
+        Number(s.stop_id),
+        String(s.stop_name || ''),
+        s.stop_desc ? String(s.stop_desc) : null,
+        Number(s.stop_lat),
+        Number(s.stop_lon),
+        nowSec
+      )
+    );
+
+    for (let i = 0; i < stmts.length; i += 50) {
+      await env.DB.batch(stmts.slice(i, i + 50));
+    }
+
+    return { count: stopsList.length };
+  } catch (err: any) {
+    return { count: 0, error: String(err?.message) };
+  }
+}
+
 export async function saveTransit(env: Env): Promise<void> {
   const t = await transit(env);
   await env.DB.prepare(
@@ -173,4 +246,14 @@ export async function saveTransit(env: Env): Promise<void> {
       (t as any).routesSummary ?? null
     )
     .run();
+
+  try {
+    const countRow = await env.DB.prepare('SELECT count(*) as cnt FROM tranzy_stops').first<{ cnt: number }>();
+    if (!countRow || countRow.cnt < 30) {
+      await syncTranzyStops(env);
+    }
+  } catch {
+    // Non-fatal if stops sync fails
+  }
 }
+

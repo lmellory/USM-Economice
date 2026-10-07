@@ -485,4 +485,126 @@ body.pink-theme {
   color: #8c4155;
 }
 
+.pink-theme .bottom-nav button.map-nav.active {
+  color: #c45b76;
+}
+
+.pink-theme .open-full-map-btn {
+  color: #b54763;
+  background: #fae4eb;
+  border-color: #f3d1da;
+}
+
+.pink-theme .transit-search-bar {
+  background: #ffffff;
+  border-color: #f3d1da;
+}
+
+.pink-theme .transit-search-bar input {
+  color: #5c3943;
+}
+
+.pink-theme .transit-search-dropdown {
+  background: #ffffff;
+  border-color: #f3d1da;
+}
+
+.pink-theme .search-drop-item {
+  border-bottom-color: #fae2e8;
+}
+
+.pink-theme .search-drop-item:hover {
+  background: #fff8fa;
+}
+
+.pink-theme .search-drop-item strong {
+  color: #5c3943;
+}
+
+.pink-theme .search-drop-item small {
+  color: #8c4155;
+}
+
+.pink-theme .transit-map-fullscreen-container {
+  border-color: #f3d1da;
+}
+
+.pink-theme .map-mode-toggle-group {
+  background: rgba(255, 248, 250, 0.94);
+  border-color: #f3d1da;
+}
+
+.pink-theme .mode-btn {
+  color: #5c3943;
+}
+
+.pink-theme .mode-btn.active {
+  background: #b54763;
+  color: #ffffff;
+}
+
+.pink-theme .map-hud-toggle-btn {
+  background: rgba(255, 248, 250, 0.94);
+  color: #5c3943;
+  border-color: #f3d1da;
+}
+
+.pink-theme .map-hud-toggle-btn.active {
+  background: #b54763;
+  color: #ffffff;
+}
+
+.pink-theme .map-action-round-btn {
+  background: rgba(255, 248, 250, 0.94);
+  color: #5c3943;
+  border-color: #f3d1da;
+}
+
+.pink-theme .route-chip {
+  background: rgba(255, 248, 250, 0.94);
+  color: #5c3943;
+  border-color: #f3d1da;
+}
+
+.pink-theme .route-chip.active {
+  background: #b54763;
+  color: #ffffff;
+  border-color: #b54763;
+}
+
+.pink-theme .transit-view-bottom-pill {
+  background: rgba(255, 248, 250, 0.95);
+  border-color: #fae2e8;
+}
+
+.pink-theme .live-stat-text {
+  color: #5c3943;
+}
+
+.pink-theme .stop-popup-head {
+  background: #fff8fa;
+  border-bottom-color: #fae2e8;
+}
+
+.pink-theme .stop-popup-head b {
+  color: #5c3943;
+}
+
+.pink-theme .stop-popup-head small {
+  color: #8c4155;
+}
+
+.pink-theme .stop-popup-body {
+  background: #ffffff;
+}
+
+.pink-theme .stop-popup-row span {
+  color: #8c4155;
+}
+
+.pink-theme .stop-popup-row b {
+  color: #5c3943;
+}
+
+
 

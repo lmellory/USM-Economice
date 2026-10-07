@@ -456,8 +456,17 @@ export function HomeView({
               {commuteLive?.trackedTrolleys && commuteLive.trackedTrolleys.length > 0 && (
                 <div className="tracked-trolleys-box">
                   <div className="tracked-trolleys-title">
-                    <span className="live-pulse-dot" />
-                    <span>Троллейбусы на линии</span>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                      <span className="live-pulse-dot" />
+                      <span>Троллейбусы на линии</span>
+                    </div>
+                    <button
+                      type="button"
+                      className="open-full-map-btn"
+                      onClick={() => navigate('map')}
+                    >
+                      Карта и спутник →
+                    </button>
                   </div>
                   <div className="tracked-trolleys-grid">
                     {commuteLive.trackedTrolleys.map((t) => (

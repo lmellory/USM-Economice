@@ -427,4 +427,131 @@ body.dark-theme {
   color: #9ca3af;
 }
 
+.dark-theme .bottom-nav button.map-nav.active {
+  color: #60a5fa;
+}
+
+.dark-theme .open-full-map-btn {
+  color: #60a5fa;
+  background: rgba(96, 165, 250, 0.12);
+  border-color: rgba(96, 165, 250, 0.25);
+}
+
+.dark-theme .transit-search-bar {
+  background: #1e2420;
+  border-color: #353d37;
+}
+
+.dark-theme .transit-search-bar input {
+  color: #e7e9e4;
+}
+
+.dark-theme .transit-search-dropdown {
+  background: #1e2420;
+  border-color: #353d37;
+}
+
+.dark-theme .search-drop-item {
+  border-bottom-color: rgba(255, 255, 255, 0.05);
+}
+
+.dark-theme .search-drop-item:hover {
+  background: rgba(96, 165, 250, 0.1);
+}
+
+.dark-theme .search-drop-item strong {
+  color: #e7e9e4;
+}
+
+.dark-theme .search-drop-item small {
+  color: #9ca3af;
+}
+
+.dark-theme .transit-map-fullscreen-container {
+  border-color: #353d37;
+}
+
+.dark-theme .map-mode-toggle-group {
+  background: rgba(30, 36, 32, 0.94);
+  border-color: rgba(255, 255, 255, 0.08);
+}
+
+.dark-theme .mode-btn {
+  color: #d1d5db;
+}
+
+.dark-theme .mode-btn.active {
+  background: #758a78;
+  color: #ffffff;
+}
+
+.dark-theme .map-hud-toggle-btn {
+  background: rgba(30, 36, 32, 0.94);
+  color: #d1d5db;
+  border-color: rgba(255, 255, 255, 0.08);
+}
+
+.dark-theme .map-hud-toggle-btn.active {
+  background: #0284c7;
+  color: #ffffff;
+}
+
+.dark-theme .map-action-round-btn {
+  background: rgba(30, 36, 32, 0.94);
+  color: #d1d5db;
+  border-color: rgba(255, 255, 255, 0.08);
+}
+
+.dark-theme .map-action-round-btn:hover {
+  background: #28312b;
+  color: #ffffff;
+}
+
+.dark-theme .route-chip {
+  background: rgba(30, 36, 32, 0.92);
+  color: #d1d5db;
+  border-color: rgba(255, 255, 255, 0.08);
+}
+
+.dark-theme .route-chip.active {
+  background: #758a78;
+  color: #ffffff;
+  border-color: #758a78;
+}
+
+.dark-theme .transit-view-bottom-pill {
+  background: rgba(22, 27, 24, 0.94);
+  border-color: #2e3730;
+}
+
+.dark-theme .live-stat-text {
+  color: #d1d5db;
+}
+
+.dark-theme .stop-popup-head {
+  background: #222824;
+  border-bottom-color: #353d37;
+}
+
+.dark-theme .stop-popup-head b {
+  color: #f3f4f6;
+}
+
+.dark-theme .stop-popup-head small {
+  color: #9ca3af;
+}
+
+.dark-theme .stop-popup-body {
+  background: #1e2420;
+}
+
+.dark-theme .stop-popup-row span {
+  color: #9ca3af;
+}
+
+.dark-theme .stop-popup-row b {
+  color: #f3f4f6;
+}
+
+
 
