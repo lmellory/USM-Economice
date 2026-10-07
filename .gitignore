@@ -10,3 +10,5 @@ node_modules/
 demovideo/
 /USM/
 *.log
+.wrangler/
+**/.wrangler/

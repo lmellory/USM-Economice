@@ -553,5 +553,62 @@ body.dark-theme {
   color: #f3f4f6;
 }
 
+.dark-theme .map-route-select {
+  background: #1e2420;
+  color: #f3f4f6;
+  border-color: rgba(255, 255, 255, 0.12);
+  box-shadow: 0 3px 10px rgba(0, 0, 0, 0.3);
+}
 
+.dark-theme .map-route-select option {
+  background: #1e2420;
+  color: #f3f4f6;
+}
 
+.dark-theme .active-route-hud-card {
+  background: rgba(22, 27, 24, 0.95);
+  border-color: #2e3730;
+  box-shadow: 0 6px 20px rgba(0, 0, 0, 0.35);
+}
+
+.dark-theme .active-route-title {
+  color: #f3f4f6;
+}
+
+.dark-theme .active-route-desc {
+  color: #9ca3af;
+}
+
+.dark-theme .active-route-close-btn {
+  background: rgba(255, 255, 255, 0.08);
+  color: #9ca3af;
+}
+
+.dark-theme .active-route-close-btn:hover {
+  background: rgba(239, 68, 68, 0.2);
+  color: #ef4444;
+}
+
+.dark-theme .minimap-active-route-strip {
+  background: rgba(22, 27, 24, 0.95);
+  border-color: #2e3730;
+  box-shadow: 0 3px 10px rgba(0, 0, 0, 0.3);
+}
+
+.dark-theme .route-strip-count {
+  color: #d1d5db;
+}
+
+.dark-theme .route-strip-close {
+  background: rgba(255, 255, 255, 0.08);
+  color: #9ca3af;
+}
+
+.dark-theme .active-route-row-badge {
+  background: rgba(16, 185, 129, 0.15);
+  border-color: rgba(16, 185, 129, 0.3);
+}
+
+.dark-theme .active-route-row-badge b {
+  color: #34d399;
+}

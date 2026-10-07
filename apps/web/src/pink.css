@@ -606,5 +606,62 @@ body.pink-theme {
   color: #5c3943;
 }
 
+.pink-theme .map-route-select {
+  background: #b54763;
+  color: #ffffff;
+  border-color: rgba(255, 255, 255, 0.2);
+  box-shadow: 0 3px 10px rgba(181, 71, 99, 0.3);
+}
 
+.pink-theme .map-route-select option {
+  background: #ffffff;
+  color: #5c3943;
+}
 
+.pink-theme .active-route-hud-card {
+  background: rgba(255, 248, 250, 0.96);
+  border-color: #f3d1da;
+  box-shadow: 0 6px 20px rgba(181, 71, 99, 0.15);
+}
+
+.pink-theme .active-route-title {
+  color: #5c3943;
+}
+
+.pink-theme .active-route-desc {
+  color: #8c4155;
+}
+
+.pink-theme .active-route-close-btn {
+  background: rgba(181, 71, 99, 0.08);
+  color: #8c4155;
+}
+
+.pink-theme .active-route-close-btn:hover {
+  background: rgba(239, 68, 68, 0.15);
+  color: #ef4444;
+}
+
+.pink-theme .minimap-active-route-strip {
+  background: rgba(255, 248, 250, 0.96);
+  border-color: #f3d1da;
+  box-shadow: 0 3px 10px rgba(181, 71, 99, 0.12);
+}
+
+.pink-theme .route-strip-count {
+  color: #5c3943;
+}
+
+.pink-theme .route-strip-close {
+  background: rgba(181, 71, 99, 0.08);
+  color: #8c4155;
+}
+
+.pink-theme .active-route-row-badge {
+  background: rgba(181, 71, 99, 0.1);
+  border-color: rgba(181, 71, 99, 0.2);
+}
+
+.pink-theme .active-route-row-badge b {
+  color: #b54763;
+}

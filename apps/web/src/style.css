@@ -2578,6 +2578,14 @@ button {
   z-index: 900;
 }
 
+.trolley-nav-arrow {
+  font-size: 8px;
+  line-height: 1;
+  transform: rotate(-45deg);
+  display: inline-block;
+  opacity: 0.95;
+}
+
 .trolley-pin-num {
   font: 800 11px/1 'Manrope', sans-serif;
   letter-spacing: -0.02em;
@@ -2637,6 +2645,18 @@ button {
   display: flex;
   justify-content: space-between;
   font-size: 11px;
+}
+
+.active-route-row-badge {
+  background: rgba(16, 185, 129, 0.1);
+  border-radius: 6px;
+  padding: 3px 6px;
+  margin: -2px 0 2px 0;
+  border: 1px solid rgba(16, 185, 129, 0.2);
+}
+
+.active-route-row-badge b {
+  color: #059669;
 }
 
 .map-trolley-popup .popup-row span {
@@ -3120,4 +3140,162 @@ button {
   color: #0f172a;
   font-weight: 700;
 }
+
+/* Route Selector Dropdown & Active Route Card */
+.map-route-dropdown-wrap {
+  pointer-events: auto;
+}
+
+.map-route-select {
+  background: #0284c7;
+  color: #ffffff;
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  border-radius: 999px;
+  padding: 5px 12px;
+  font: 700 11px/1 'Manrope', sans-serif;
+  cursor: pointer;
+  box-shadow: 0 3px 10px rgba(2, 132, 199, 0.35);
+  outline: none;
+  transition: all 0.15s ease;
+}
+
+.map-route-select:hover {
+  background: #0369a1;
+}
+
+.map-route-select option {
+  background: #ffffff;
+  color: #111827;
+}
+
+.active-route-hud-card {
+  position: absolute;
+  top: 90px;
+  left: 10px;
+  right: 10px;
+  z-index: 500;
+  background: rgba(255, 255, 255, 0.96);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  border: 1px solid rgba(0, 0, 0, 0.08);
+  border-radius: 14px;
+  padding: 9px 12px;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  box-shadow: 0 6px 20px rgba(0, 0, 0, 0.14);
+  animation: slide-in-top 0.25s cubic-bezier(0.16, 1, 0.3, 1);
+  pointer-events: auto;
+}
+
+@keyframes slide-in-top {
+  from { opacity: 0; transform: translateY(-8px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+.active-route-badge {
+  color: #ffffff;
+  padding: 5px 8px;
+  border-radius: 8px;
+  font: 800 12px/1 'Manrope', sans-serif;
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.2);
+  flex-shrink: 0;
+}
+
+.active-route-meta {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.active-route-header-text {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.active-route-title {
+  font: 700 12.5px/1 'Manrope', sans-serif;
+  color: #0f172a;
+}
+
+.active-route-count-pill {
+  background: rgba(16, 185, 129, 0.12);
+  color: #059669;
+  font: 700 10.5px/1 'DM Sans', sans-serif;
+  padding: 3px 7px;
+  border-radius: 999px;
+  border: 1px solid rgba(16, 185, 129, 0.2);
+}
+
+.active-route-desc {
+  font: 500 10.5px/1.2 'DM Sans', sans-serif;
+  color: #64748b;
+}
+
+.active-route-close-btn {
+  width: 26px;
+  height: 26px;
+  border-radius: 50%;
+  background: rgba(0, 0, 0, 0.06);
+  color: #64748b;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  transition: all 0.15s ease;
+  flex-shrink: 0;
+}
+
+.active-route-close-btn:hover {
+  background: rgba(239, 68, 68, 0.15);
+  color: #ef4444;
+}
+
+/* Minimap active route strip */
+.minimap-active-route-strip {
+  position: absolute;
+  top: 48px;
+  left: 10px;
+  right: 10px;
+  z-index: 500;
+  background: rgba(255, 255, 255, 0.95);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+  border: 1px solid rgba(0, 0, 0, 0.08);
+  border-radius: 8px;
+  padding: 4px 8px;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  box-shadow: 0 3px 10px rgba(0, 0, 0, 0.1);
+  pointer-events: auto;
+}
+
+.route-strip-badge {
+  color: #ffffff;
+  padding: 2px 6px;
+  border-radius: 6px;
+  font: 800 10px/1 'Manrope', sans-serif;
+}
+
+.route-strip-count {
+  flex: 1;
+  font: 600 10.5px/1 'DM Sans', sans-serif;
+  color: #374151;
+}
+
+.route-strip-close {
+  color: #9ca3af;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.route-strip-close:hover {
+  color: #ef4444;
+}
+
 

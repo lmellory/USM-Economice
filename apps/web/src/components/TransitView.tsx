@@ -15,6 +15,7 @@ import {
 } from 'lucide-react';
 import { LiveTrackedVehicle, TransitStop, CommuteOption } from '../lib/plan.js';
 import { haversineDistanceMeters } from '@usm/shared';
+import { CHISINAU_ROUTES_TRACKS, getRouteTrack } from '../lib/routes-geometry.js';
 
 interface TransitViewProps {
   vehicles: LiveTrackedVehicle[];
@@ -25,12 +26,13 @@ interface TransitViewProps {
 }
 
 const ROUTE_COLORS: Record<string, string> = {
-  '2': '#4f46e5', // Indigo (USM)
+  '2': '#d946ef', // Magenta
   '17': '#059669', // Emerald (Sports)
   '4': '#7c3aed', // Violet
   '22': '#d97706', // Amber (Dacia Express)
   '10': '#0284c7', // Sky
   '24': '#ea580c', // Orange
+  '30': '#ec4899', // Pink
 };
 
 const DEFAULT_CENTER = { lat: 46.995, lon: 28.845 }; // Centered between Botanica & Centru
@@ -47,6 +49,7 @@ export const TransitView: React.FC<TransitViewProps> = ({
   const streetLayerRef = useRef<L.TileLayer | null>(null);
   const satLayerRef = useRef<L.TileLayer | null>(null);
   const satLabelsLayerRef = useRef<L.TileLayer | null>(null);
+  const routeLayerRef = useRef<L.LayerGroup | null>(null);
   const vehiclesLayerRef = useRef<L.LayerGroup | null>(null);
   const stopsLayerRef = useRef<L.LayerGroup | null>(null);
   const userMarkerRef = useRef<L.Marker | null>(null);
@@ -199,7 +202,8 @@ export const TransitView: React.FC<TransitViewProps> = ({
       streetLayer.addTo(map);
     }
 
-    // Layers groups for markers
+    // Layers groups for markers and route track
+    routeLayerRef.current = L.layerGroup().addTo(map);
     stopsLayerRef.current = L.layerGroup().addTo(map);
     vehiclesLayerRef.current = L.layerGroup().addTo(map);
 
@@ -210,6 +214,72 @@ export const TransitView: React.FC<TransitViewProps> = ({
       mapInstanceRef.current = null;
     };
   }, [isDark]);
+
+  // Render Selected Route Track Polyline (like magenta line in screenshot)
+  useEffect(() => {
+    const map = mapInstanceRef.current;
+    const routeLayer = routeLayerRef.current;
+    if (!map || !routeLayer) return;
+
+    routeLayer.clearLayers();
+
+    if (selectedRouteFilter === 'all') {
+      return;
+    }
+
+    const track = getRouteTrack(selectedRouteFilter, activeVehicles);
+    if (!track || !track.waypoints || track.waypoints.length === 0) {
+      return;
+    }
+
+    // Outer neon glow
+    const outerGlow = L.polyline(track.waypoints, {
+      color: track.color,
+      weight: 10,
+      opacity: 0.35,
+      lineCap: 'round',
+      lineJoin: 'round',
+    });
+
+    // Core vivid line
+    const coreLine = L.polyline(track.waypoints, {
+      color: track.color,
+      weight: 5,
+      opacity: 0.95,
+      lineCap: 'round',
+      lineJoin: 'round',
+    });
+
+    const routeVehiclesCount = activeVehicles.filter(
+      (v) => v.route_short_name === selectedRouteFilter
+    ).length;
+
+    coreLine.bindPopup(
+      `<div class="map-trolley-popup">
+        <div class="popup-head" style="background: ${track.color}">
+          <strong>${track.routeName}</strong>
+          <span>${routeVehiclesCount} ${routeVehiclesCount === 1 ? 'машина' : routeVehiclesCount < 5 ? 'машины' : 'машин'}</span>
+        </div>
+        <div class="popup-body">
+          <small>${track.description}</small>
+        </div>
+      </div>`,
+      { offset: [0, -4] }
+    );
+
+    outerGlow.addTo(routeLayer);
+    coreLine.addTo(routeLayer);
+
+    // Zoom and pan smoothly to the whole route extent
+    try {
+      const bounds = coreLine.getBounds();
+      if (bounds.isValid()) {
+        map.fitBounds(bounds, { padding: [45, 45], maxZoom: 15 });
+      }
+    } catch {
+      // Handled silently
+    }
+  }, [selectedRouteFilter, activeVehicles]);
 
   // Handle Map Mode Toggle (Street / Satellite)
   useEffect(() => {
@@ -377,11 +447,14 @@ export const TransitView: React.FC<TransitViewProps> = ({
         );
       }
 
+      const routeVehiclesCount = activeVehicles.filter(
+        (v) => v.route_short_name === veh.route_short_name
+      ).length;
+
       const trolleyHtml = `
         <div class="map-trolley-pin" style="--route-color: ${color}">
-          <div class="trolley-pin-badge">
-            <span class="trolley-pin-num">№${veh.route_short_name}</span>
-          </div>
+          <span class="trolley-nav-arrow" aria-hidden="true">➤</span>
+          <span class="trolley-pin-num">${veh.route_short_name}</span>
           ${speedKmH > 2 ? `<span class="trolley-speed-tag">${speedKmH}</span>` : ''}
         </div>
       `;
@@ -389,8 +462,8 @@ export const TransitView: React.FC<TransitViewProps> = ({
       const tIcon = L.divIcon({
         className: 'custom-trolley-marker',
         html: trolleyHtml,
-        iconSize: [40, 26],
-        iconAnchor: [20, 13],
+        iconSize: [44, 26],
+        iconAnchor: [22, 13],
       });
 
       const popupHtml = `
@@ -400,6 +473,10 @@ export const TransitView: React.FC<TransitViewProps> = ({
             <span>борт ${veh.label || '—'}</span>
           </div>
           <div class="popup-body">
+            <div class="popup-row active-route-row-badge">
+              <span>На этом маршруте:</span>
+              <b>${routeVehiclesCount} ${routeVehiclesCount === 1 ? 'машина' : routeVehiclesCount < 5 ? 'машины' : 'машин'}</b>
+            </div>
             ${
               distToUserMeters != null
                 ? `<div class="popup-row">
@@ -420,9 +497,13 @@ export const TransitView: React.FC<TransitViewProps> = ({
         </div>
       `;
 
-      L.marker([veh.latitude, veh.longitude], { icon: tIcon })
+      const trolleyMarker = L.marker([veh.latitude, veh.longitude], { icon: tIcon })
         .bindPopup(popupHtml, { closeButton: false, offset: [0, -10] })
         .addTo(layer);
+
+      trolleyMarker.on('click', () => {
+        setSelectedRouteFilter(veh.route_short_name);
+      });
     });
   }, [activeVehicles, selectedRouteFilter, userLocation]);
 
@@ -462,6 +543,11 @@ export const TransitView: React.FC<TransitViewProps> = ({
       setTimeout(() => setIsRefreshing(false), 600);
     }
   };
+
+  const selectedTrack = selectedRouteFilter !== 'all' ? getRouteTrack(selectedRouteFilter, activeVehicles) : null;
+  const vehiclesOnSelectedRoute = selectedRouteFilter !== 'all'
+    ? activeVehicles.filter((v) => v.route_short_name === selectedRouteFilter)
+    : activeVehicles;
 
   return (
     <div className="transit-view-page">
@@ -534,6 +620,26 @@ export const TransitView: React.FC<TransitViewProps> = ({
             </button>
           </div>
 
+          {/* Route Dropdown Selector (Matching user screenshot) */}
+          <div className="map-route-dropdown-wrap">
+            <select
+              value={selectedRouteFilter}
+              onChange={(e) => setSelectedRouteFilter(e.target.value)}
+              className="map-route-select"
+              title="Выбор маршрута"
+            >
+              <option value="all">Все машины ({activeVehicles.length})</option>
+              {availableRoutes.map((rt) => {
+                const count = activeVehicles.filter((v) => v.route_short_name === rt).length;
+                return (
+                  <option key={rt} value={rt}>
+                    Маршрут №{rt} ({count} на линии)
+                  </option>
+                );
+              })}
+            </select>
+          </div>
+
           {/* Stops Toggle */}
           <button
             type="button"
@@ -596,6 +702,40 @@ export const TransitView: React.FC<TransitViewProps> = ({
             );
           })}
         </div>
+
+        {/* Floating Active Route Card with Trolley Count */}
+        {selectedRouteFilter !== 'all' && (
+          <div className="active-route-hud-card">
+            <div
+              className="active-route-badge"
+              style={{ background: selectedTrack?.color || '#d946ef' }}
+            >
+              <span>№{selectedRouteFilter}</span>
+            </div>
+            <div className="active-route-meta">
+              <div className="active-route-header-text">
+                <strong className="active-route-title">
+                  {selectedTrack?.routeName || `Маршрут №${selectedRouteFilter}`}
+                </strong>
+                <span className="active-route-count-pill">
+                  {vehiclesOnSelectedRoute.length} {vehiclesOnSelectedRoute.length === 1 ? 'машина' : vehiclesOnSelectedRoute.length < 5 ? 'машины' : 'машин'} на рейсе
+                </span>
+              </div>
+              <small className="active-route-desc">
+                {selectedTrack?.description || 'Траектория движения'}
+              </small>
+            </div>
+            <button
+              type="button"
+              className="active-route-close-btn"
+              onClick={() => setSelectedRouteFilter('all')}
+              title="Показать все машины"
+              aria-label="Сбросить выбранный маршрут"
+            >
+              <X size={15} />
+            </button>
+          </div>
+        )}
 
         {/* Floating Bottom Status Pill */}
         <div className="transit-view-bottom-pill">

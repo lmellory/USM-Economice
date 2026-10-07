@@ -4,6 +4,7 @@ import 'leaflet/dist/leaflet.css';
 import { Crosshair, Maximize2, Minimize2, Bus, MapPin, X, Navigation } from 'lucide-react';
 import { LiveTrackedVehicle, TransitStop } from '../lib/plan.js';
 import { haversineDistanceMeters } from '@usm/shared';
+import { CHISINAU_ROUTES_TRACKS, getRouteTrack } from '../lib/routes-geometry.js';
 
 interface TransitMiniMapProps {
   vehicles: LiveTrackedVehicle[];
@@ -13,12 +14,13 @@ interface TransitMiniMapProps {
 }
 
 const ROUTE_COLORS: Record<string, string> = {
-  '2': '#4f46e5', // Indigo (USM)
+  '2': '#d946ef', // Magenta
   '17': '#059669', // Emerald (Sports)
   '4': '#7c3aed', // Violet
   '22': '#d97706', // Amber (Dacia Express)
   '10': '#0284c7', // Sky
   '24': '#ea580c', // Orange
+  '30': '#ec4899', // Pink
 };
 
 export const TransitMiniMap: React.FC<TransitMiniMapProps> = ({
@@ -30,6 +32,7 @@ export const TransitMiniMap: React.FC<TransitMiniMapProps> = ({
   const containerRef = useRef<HTMLDivElement>(null);
   const mapInstanceRef = useRef<L.Map | null>(null);
   const markersLayerRef = useRef<L.LayerGroup | null>(null);
+  const routeLayerRef = useRef<L.LayerGroup | null>(null);
   const userMarkerRef = useRef<L.Marker | null>(null);
 
   const [isFullscreen, setIsFullscreen] = useState(false);
@@ -106,6 +109,9 @@ export const TransitMiniMap: React.FC<TransitMiniMapProps> = ({
     const markersGroup = L.layerGroup().addTo(map);
     markersLayerRef.current = markersGroup;
 
+    const routeGroup = L.layerGroup().addTo(map);
+    routeLayerRef.current = routeGroup;
+
     // Fix map rendering size after mount / fullscreen toggle
     setTimeout(() => {
       map.invalidateSize();
@@ -116,6 +122,66 @@ export const TransitMiniMap: React.FC<TransitMiniMapProps> = ({
       mapInstanceRef.current = null;
     };
   }, [isFullscreen, theme]);
+
+  // Render Selected Route Track Polyline
+  useEffect(() => {
+    const map = mapInstanceRef.current;
+    const routeLayer = routeLayerRef.current;
+    if (!map || !routeLayer) return;
+
+    routeLayer.clearLayers();
+
+    if (selectedRouteFilter === 'all') {
+      return;
+    }
+
+    const track = getRouteTrack(selectedRouteFilter, vehicles);
+    if (!track || !track.waypoints || track.waypoints.length === 0) {
+      return;
+    }
+
+    const outerGlow = L.polyline(track.waypoints, {
+      color: track.color,
+      weight: 9,
+      opacity: 0.35,
+      lineCap: 'round',
+      lineJoin: 'round',
+    });
+
+    const coreLine = L.polyline(track.waypoints, {
+      color: track.color,
+      weight: 5,
+      opacity: 0.95,
+      lineCap: 'round',
+      lineJoin: 'round',
+    });
+
+    const countOnLine = vehicles.filter((v) => v.route_short_name === selectedRouteFilter).length;
+    coreLine.bindPopup(
+      `<div class="map-trolley-popup">
+        <div class="popup-head" style="background: ${track.color}">
+          <strong>${track.routeName}</strong>
+          <span>${countOnLine} ${countOnLine === 1 ? 'машина' : countOnLine < 5 ? 'машины' : 'машин'}</span>
+        </div>
+        <div class="popup-body">
+          <small>${track.description}</small>
+        </div>
+      </div>`,
+      { offset: [0, -4] }
+    );
+
+    outerGlow.addTo(routeLayer);
+    coreLine.addTo(routeLayer);
+
+    try {
+      const bounds = coreLine.getBounds();
+      if (bounds.isValid()) {
+        map.fitBounds(bounds, { padding: [35, 35], maxZoom: 15 });
+      }
+    } catch {
+      // Handled silently
+    }
+  }, [selectedRouteFilter, vehicles]);
 
   // Update Markers (User, Stop, Trolleybuses)
   useEffect(() => {
@@ -204,11 +270,14 @@ export const TransitMiniMap: React.FC<TransitMiniMapProps> = ({
 
       const etaToStopMin = Math.max(1, Math.round(distToStopMeters / 350));
 
+      const routeVehiclesCount = vehicles.filter(
+        (v) => v.route_short_name === veh.route_short_name
+      ).length;
+
       const trolleyHtml = `
         <div class="map-trolley-pin" style="--route-color: ${color}">
-          <div class="trolley-pin-badge">
-            <span class="trolley-pin-num">№${veh.route_short_name}</span>
-          </div>
+          <span class="trolley-nav-arrow" aria-hidden="true">➤</span>
+          <span class="trolley-pin-num">${veh.route_short_name}</span>
           ${speedKmH > 3 ? `<span class="trolley-speed-tag">${speedKmH}</span>` : ''}
         </div>
       `;
@@ -216,8 +285,8 @@ export const TransitMiniMap: React.FC<TransitMiniMapProps> = ({
       const tIcon = L.divIcon({
         className: 'custom-trolley-marker',
         html: trolleyHtml,
-        iconSize: [38, 26],
-        iconAnchor: [19, 13],
+        iconSize: [42, 26],
+        iconAnchor: [21, 13],
       });
 
       const popupHtml = `
@@ -227,6 +296,10 @@ export const TransitMiniMap: React.FC<TransitMiniMapProps> = ({
             <span>борт ${veh.label || '—'}</span>
           </div>
           <div class="popup-body">
+            <div class="popup-row active-route-row-badge">
+              <span>На этом маршруте:</span>
+              <b>${routeVehiclesCount} ${routeVehiclesCount === 1 ? 'машина' : routeVehiclesCount < 5 ? 'машины' : 'машин'}</b>
+            </div>
             <div class="popup-row">
               <span>До остановки:</span>
               <b>${distToStopMeters} м (~${etaToStopMin} мин)</b>
@@ -247,9 +320,13 @@ export const TransitMiniMap: React.FC<TransitMiniMapProps> = ({
         </div>
       `;
 
-      L.marker([veh.latitude, veh.longitude], { icon: tIcon })
+      const tMarker = L.marker([veh.latitude, veh.longitude], { icon: tIcon })
         .bindPopup(popupHtml, { closeButton: false, offset: [0, -10] })
         .addTo(layer);
+
+      tMarker.on('click', () => {
+        setSelectedRouteFilter(veh.route_short_name);
+      });
     });
   }, [vehicles, selectedRouteFilter, userLocation, boardStop, defaultCenterLat, defaultCenterLon]);
 
@@ -263,6 +340,11 @@ export const TransitMiniMap: React.FC<TransitMiniMapProps> = ({
       map.flyTo([defaultCenterLat, defaultCenterLon], 14, { duration: 0.8 });
     }
   }, [userLocation, defaultCenterLat, defaultCenterLon]);
+
+  const selectedTrack = selectedRouteFilter !== 'all' ? getRouteTrack(selectedRouteFilter, vehicles) : null;
+  const vehiclesOnSelectedRoute = selectedRouteFilter !== 'all'
+    ? vehicles.filter((v) => v.route_short_name === selectedRouteFilter)
+    : vehicles;
 
   return (
     <div className={`transit-minimap-wrapper ${isFullscreen ? 'fullscreen' : 'compact'}`}>
@@ -317,6 +399,26 @@ export const TransitMiniMap: React.FC<TransitMiniMapProps> = ({
           </button>
         </div>
       </div>
+
+      {/* Active Route Strip */}
+      {selectedRouteFilter !== 'all' && (
+        <div className="minimap-active-route-strip">
+          <span className="route-strip-badge" style={{ background: selectedTrack?.color || '#d946ef' }}>
+            №{selectedRouteFilter}
+          </span>
+          <span className="route-strip-count">
+            <b>{vehiclesOnSelectedRoute.length}</b> {vehiclesOnSelectedRoute.length === 1 ? 'машина' : vehiclesOnSelectedRoute.length < 5 ? 'машины' : 'машин'} на линии
+          </span>
+          <button
+            type="button"
+            className="route-strip-close"
+            onClick={() => setSelectedRouteFilter('all')}
+            title="Все машины"
+          >
+            <X size={12} />
+          </button>
+        </div>
+      )}
 
       {/* Leaflet Map DOM Container */}
       <div ref={containerRef} className="transit-map-canvas" />
