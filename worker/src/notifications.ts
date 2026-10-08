@@ -11,6 +11,7 @@ import {
 import { mapClassRow, mapExceptionRow } from './classes.js';
 import { evaluateUserCommute } from './commute.js';
 import { Env } from './types.js';
+import { createDb } from './db.js';
 
 export async function telegram(env: Env, method: string, body: unknown): Promise<any> {
   const r = await fetch(`https://api.telegram.org/bot${env.BOT_TOKEN}/${method}`, {
@@ -27,7 +28,8 @@ export async function buildEveningDigest(
   userId: string,
   tomorrowDate: string
 ): Promise<string | null> {
-  const u = await env.DB.prepare(
+  const db = createDb(env);
+  const u = await db.prepare(
     'SELECT s.*,c.schedule FROM settings s LEFT JOIN schedule_overrides c ON c.user_id=s.user_id WHERE s.user_id=?'
   )
     .bind(userId)
@@ -37,10 +39,10 @@ export async function buildEveningDigest(
   const parity = calculateWeekParity(tomorrowDate, u?.semester_start, u?.first_week_parity);
 
   const [classRows, excRows] = await Promise.all([
-    env.DB.prepare('SELECT * FROM classes WHERE user_id=? ORDER BY day ASC, start ASC, position ASC')
+    db.prepare('SELECT * FROM classes WHERE user_id=? ORDER BY day ASC, start ASC, position ASC')
       .bind(userId)
       .all(),
-    env.DB.prepare('SELECT * FROM schedule_exceptions WHERE user_id=? AND date=?')
+    db.prepare('SELECT * FROM schedule_exceptions WHERE user_id=? AND date=?')
       .bind(userId, tomorrowDate)
       .all(),
   ]);
@@ -90,7 +92,7 @@ export async function buildEveningDigest(
   const first = activeTomorrow[0];
   const targetCampus = first.online ? activeTomorrow.find((c) => !c.online) : first;
 
-  const tomorrowHw = await env.DB.prepare(
+  const tomorrowHw = await db.prepare(
     'SELECT title FROM homework WHERE user_id=? AND completed=0 AND due_date=?'
   )
     .bind(userId, tomorrowDate)
@@ -137,27 +139,29 @@ export async function notificationTick(env: Env): Promise<void> {
   const curHour = Number(chParts.find((p) => p.type === 'hour')?.value || 0);
   const curMin = Number(chParts.find((p) => p.type === 'minute')?.value || 0);
 
+  const db = createDb(env);
+
   // Trigger 21:00 evening digest
   if (curHour === 21 && curMin <= 2) {
     const tomorrow = dateShift(today, 1);
-    const notifyUsers = await env.DB.prepare('SELECT id AS user_id FROM users').all<any>();
-    for (const u of notifyUsers.results) {
-      const key = `evening:${today}:${tomorrow}`;
-      await env.DB.prepare(
-        'INSERT INTO notification_log(user_id,event_key,next_attempt) VALUES(?,?,?) ON CONFLICT(user_id,event_key) DO NOTHING'
-      )
-        .bind(u.user_id, key, nowIso)
-        .run();
+    const notifyUsers = await db.prepare('SELECT id AS user_id FROM users').all<any>();
+    if (notifyUsers.results && notifyUsers.results.length > 0) {
+      const inserts = notifyUsers.results.map((u: any) =>
+        db.prepare(
+          'INSERT INTO notification_log(user_id,event_key,next_attempt) VALUES(?,?,?) ON CONFLICT(user_id,event_key) DO NOTHING'
+        ).bind(u.user_id, `evening:${today}:${tomorrow}`, nowIso)
+      );
+      await db.batch(inserts);
     }
   }
 
   // Optimize cron: check if anyone has active notification preferences
-  const activeCount = await env.DB.prepare(
+  const activeCount = await db.prepare(
     'SELECT COUNT(*) as c FROM settings WHERE reminders_enabled=1 OR wake_reminder=1 OR sleep_reminder=1 OR leave_reminder=1'
   ).first<{ c: number }>();
 
   // Check pending notifications queue first
-  const pending = await env.DB.prepare(
+  const pending = await db.prepare(
     'SELECT * FROM notification_log WHERE sent_at IS NULL AND next_attempt<=? ORDER BY id LIMIT 20'
   )
     .bind(nowIso)
@@ -169,12 +173,13 @@ export async function notificationTick(env: Env): Promise<void> {
   }
 
   // Process Homework reminders
-  const due = await env.DB.prepare(
+  const due = await db.prepare(
     'SELECT h.id,h.user_id,h.title,h.due_at,h.due_date,s.reminder_minutes FROM homework h JOIN settings s ON s.user_id=h.user_id WHERE h.completed=0 AND h.telegram_reminder=1 AND s.reminders_enabled=1 AND h.due_date IS NOT NULL AND h.due_date>=?'
   )
     .bind(today)
     .all<any>();
 
+  const hwInserts: any[] = [];
   for (const h of due.results) {
     const target = h.due_at
       ? Date.parse(h.due_at) - Number(h.reminder_minutes) * 60000
@@ -184,20 +189,24 @@ export async function notificationTick(env: Env): Promise<void> {
       continue;
     }
     const key = `homework:${h.id}:${h.due_at || h.due_date}`;
-    await env.DB.prepare(
-      'INSERT INTO notification_log(user_id,event_key,next_attempt) VALUES(?,?,?) ON CONFLICT(user_id,event_key) DO NOTHING'
-    )
-      .bind(h.user_id, key, nowIso)
-      .run();
+    hwInserts.push(
+      db.prepare(
+        'INSERT INTO notification_log(user_id,event_key,next_attempt) VALUES(?,?,?) ON CONFLICT(user_id,event_key) DO NOTHING'
+      ).bind(h.user_id, key, nowIso)
+    );
+  }
+  if (hwInserts.length > 0) {
+    await db.batch(hwInserts);
   }
 
   // Process Morning / Sleep / Leave reminders
-  const plans = await env.DB.prepare(
+  const plans = await db.prepare(
     'SELECT s.*,u.id AS telegram_id,c.schedule FROM settings s JOIN users u ON u.id=s.user_id LEFT JOIN schedule_overrides c ON c.user_id=s.user_id WHERE s.wake_reminder=1 OR s.sleep_reminder=1 OR s.leave_reminder=1'
   ).all<any>();
 
+  const planInserts: any[] = [];
   for (const u of plans.results) {
-    const userClassesRows = await env.DB.prepare(
+    const userClassesRows = await db.prepare(
       'SELECT * FROM classes WHERE user_id=? ORDER BY day ASC, start ASC, position ASC'
     )
       .bind(u.user_id)
@@ -215,7 +224,7 @@ export async function notificationTick(env: Env): Promise<void> {
       const weekday = new Date(`${date}T12:00:00Z`).getUTCDay() || 7;
       const parity = calculateWeekParity(date, u.semester_start, u.first_week_parity);
 
-      const excRows = await env.DB.prepare(
+      const excRows = await db.prepare(
         'SELECT * FROM schedule_exceptions WHERE user_id=? AND date=?'
       )
         .bind(u.user_id, date)
@@ -300,13 +309,17 @@ export async function notificationTick(env: Env): Promise<void> {
             ? `leave:${date}:${timeStr}:${encodeURIComponent(targetCampus.title)}:${encodeURIComponent(targetCampus.place || '')}:${targetCampus.start}:${actualCommuteMinutes}:${Number(u.travel_buffer || 10)}:${encodeURIComponent(vehicleNote)}`
             : `${kind}:${date}:${timeStr}`;
 
-        await env.DB.prepare(
-          'INSERT INTO notification_log(user_id,event_key,next_attempt) VALUES(?,?,?) ON CONFLICT(user_id,event_key) DO NOTHING'
-        )
-          .bind(u.user_id, key, nowIso)
-          .run();
+        planInserts.push(
+          db.prepare(
+            'INSERT INTO notification_log(user_id,event_key,next_attempt) VALUES(?,?,?) ON CONFLICT(user_id,event_key) DO NOTHING'
+          ).bind(u.user_id, key, nowIso)
+        );
       }
     }
+  }
+
+  if (planInserts.length > 0) {
+    await db.batch(planInserts);
   }
 
   // Deliver queued notifications
@@ -315,33 +328,32 @@ export async function notificationTick(env: Env): Promise<void> {
     let message = '';
 
     if (pieces[0] === 'homework') {
-      const h = await env.DB.prepare(
+      const h = await db.prepare(
         'SELECT title,due_at,due_date FROM homework WHERE id=? AND user_id=? AND completed=0'
       )
         .bind(pieces[1], n.user_id)
         .first<any>();
 
       if (!h) {
-        await env.DB.prepare('UPDATE notification_log SET sent_at=? WHERE id=?')
+        await db.prepare('UPDATE notification_log SET sent_at=? WHERE id=?')
           .bind(nowIso, n.id)
           .run();
         continue;
       }
-      message = `Напоминание о задании: ${h.title}\nСрок: ${
-        h.due_at
+      message = `Напоминание о задании: ${h.title}\nСрок: ${h.due_at
           ? new Intl.DateTimeFormat('ru-RU', {
-              timeZone: 'Europe/Chisinau',
-              day: 'numeric',
-              month: 'long',
-              hour: '2-digit',
-              minute: '2-digit',
-            }).format(new Date(h.due_at))
+            timeZone: 'Europe/Chisinau',
+            day: 'numeric',
+            month: 'long',
+            hour: '2-digit',
+            minute: '2-digit',
+          }).format(new Date(h.due_at))
           : new Intl.DateTimeFormat('ru-RU', {
-              timeZone: 'Europe/Chisinau',
-              day: 'numeric',
-              month: 'long',
-            }).format(new Date(`${h.due_date}T12:00:00Z`))
-      }.`;
+            timeZone: 'Europe/Chisinau',
+            day: 'numeric',
+            month: 'long',
+          }).format(new Date(`${h.due_date}T12:00:00Z`))
+        }.`;
     } else if (pieces[0] === 'wake') {
       message = `Расчётное время подъёма — ${pieces[2].replace('-', ':')}. Поставь будильник на телефоне: Telegram-напоминание его не заменяет.`;
     } else if (pieces[0] === 'sleep') {
@@ -350,7 +362,7 @@ export async function notificationTick(env: Env): Promise<void> {
       const tomorrowDate = pieces[2];
       message = (await buildEveningDigest(env, n.user_id, tomorrowDate)) || '';
       if (!message) {
-        await env.DB.prepare('UPDATE notification_log SET sent_at=? WHERE id=?')
+        await db.prepare('UPDATE notification_log SET sent_at=? WHERE id=?')
           .bind(nowIso, n.id)
           .run();
         continue;
@@ -372,7 +384,7 @@ export async function notificationTick(env: Env): Promise<void> {
 
     try {
       await telegram(env, 'sendMessage', { chat_id: n.user_id, text: message });
-      await env.DB.prepare(
+      await db.prepare(
         'UPDATE notification_log SET sent_at=?,attempts=attempts+1,next_attempt=NULL WHERE id=?'
       )
         .bind(nowIso, n.id)
@@ -380,7 +392,7 @@ export async function notificationTick(env: Env): Promise<void> {
     } catch {
       const attempts = Number(n.attempts) + 1;
       const delay = Math.min(3600, 30 * 2 ** Math.min(Number(n.attempts), 7));
-      await env.DB.prepare('UPDATE notification_log SET attempts=?,next_attempt=? WHERE id=?')
+      await db.prepare('UPDATE notification_log SET attempts=?,next_attempt=? WHERE id=?')
         .bind(attempts, new Date(now.getTime() + delay * 1000).toISOString(), n.id)
         .run();
     }

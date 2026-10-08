@@ -1,6 +1,7 @@
 import { baseSchedule, ClassItem, min, ScheduleException } from '@usm/shared';
 import { json } from './homework.js';
 import { Env } from './types.js';
+import { createDb } from './db.js';
 
 export function mapClassRow(row: any): ClassItem {
   return {
@@ -37,7 +38,8 @@ export function mapExceptionRow(row: any): ScheduleException {
 }
 
 export async function ensureClassesPopulated(env: Env, userId: string): Promise<void> {
-  const countRow = await env.DB.prepare('SELECT COUNT(*) as c FROM classes WHERE user_id=?')
+  const db = createDb(env);
+  const countRow = await db.prepare('SELECT COUNT(*) as c FROM classes WHERE user_id=?')
     .bind(userId)
     .first<{ c: number }>();
 
@@ -46,7 +48,7 @@ export async function ensureClassesPopulated(env: Env, userId: string): Promise<
   }
 
   // Check existing schedule_overrides
-  const override = await env.DB.prepare('SELECT schedule FROM schedule_overrides WHERE user_id=?')
+  const override = await db.prepare('SELECT schedule FROM schedule_overrides WHERE user_id=?')
     .bind(userId)
     .first<any>();
 
@@ -69,7 +71,7 @@ export async function ensureClassesPopulated(env: Env, userId: string): Promise<
       (c.place && c.place.includes('Ismail')) ||
       (c.title && (c.title.includes('физ') || c.title.includes('спорт')));
     const dest = isSport ? 'sports' : 'university';
-    return env.DB.prepare(
+    return db.prepare(
       'INSERT INTO classes(id,user_id,day,start,end,title,kind,place,parity,online,duration_unknown,destination,position) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?)'
     ).bind(
       classId,
@@ -89,7 +91,7 @@ export async function ensureClassesPopulated(env: Env, userId: string): Promise<
   });
 
   if (batch.length > 0) {
-    await env.DB.batch(batch);
+    await db.batch(batch);
   }
 }
 
@@ -108,9 +110,10 @@ export async function handleClasses(
   userId: string,
   id?: string
 ): Promise<Response> {
+  const db = createDb(env);
   if (request.method === 'GET') {
     await ensureClassesPopulated(env, userId);
-    const rows = await env.DB.prepare(
+    const rows = await db.prepare(
       'SELECT * FROM classes WHERE user_id=? ORDER BY day ASC, start ASC, position ASC'
     )
       .bind(userId)
@@ -159,7 +162,7 @@ export async function handleClasses(
     const position = Number.isInteger(body.position) ? body.position : 0;
     const destination = body.destination === 'sports' ? 'sports' : 'university';
 
-    await env.DB.prepare(
+    await db.prepare(
       'INSERT INTO classes(id,user_id,day,start,end,title,kind,place,parity,online,duration_unknown,destination,position) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?)'
     )
       .bind(
@@ -179,7 +182,7 @@ export async function handleClasses(
       )
       .run();
 
-    const created = await env.DB.prepare('SELECT * FROM classes WHERE id=? AND user_id=?')
+    const created = await db.prepare('SELECT * FROM classes WHERE id=? AND user_id=?')
       .bind(classId, userId)
       .first();
 
@@ -194,7 +197,7 @@ export async function handleClasses(
       return json({ error: 'Некорректные данные JSON.' }, 400);
     }
 
-    const existing = await env.DB.prepare('SELECT * FROM classes WHERE id=? AND user_id=?')
+    const existing = await db.prepare('SELECT * FROM classes WHERE id=? AND user_id=?')
       .bind(id, userId)
       .first();
 
@@ -234,7 +237,7 @@ export async function handleClasses(
     const position = Number.isInteger(body.position) ? body.position : 0;
     const destination = body.destination === 'sports' ? 'sports' : 'university';
 
-    await env.DB.prepare(
+    await db.prepare(
       'UPDATE classes SET day=?,start=?,end=?,title=?,kind=?,place=?,parity=?,online=?,duration_unknown=?,destination=?,position=?,updated_at=CURRENT_TIMESTAMP WHERE id=? AND user_id=?'
     )
       .bind(
@@ -254,7 +257,7 @@ export async function handleClasses(
       )
       .run();
 
-    const updated = await env.DB.prepare('SELECT * FROM classes WHERE id=? AND user_id=?')
+    const updated = await db.prepare('SELECT * FROM classes WHERE id=? AND user_id=?')
       .bind(id, userId)
       .first();
 
@@ -262,7 +265,7 @@ export async function handleClasses(
   }
 
   if (request.method === 'DELETE' && id) {
-    const res = await env.DB.prepare('DELETE FROM classes WHERE id=? AND user_id=?')
+    const res = await db.prepare('DELETE FROM classes WHERE id=? AND user_id=?')
       .bind(id, userId)
       .run();
 
@@ -282,6 +285,7 @@ export async function handleScheduleExceptions(
   userId: string,
   id?: string
 ): Promise<Response> {
+  const db = createDb(env);
   if (request.method === 'GET') {
     const url = new URL(request.url);
     const dateParam = url.searchParams.get('date');
@@ -299,7 +303,7 @@ export async function handleScheduleExceptions(
       query += ' ORDER BY date ASC, created_at ASC';
     }
 
-    const rows = await env.DB.prepare(query).bind(...params).all();
+    const rows = await db.prepare(query).bind(...params).all();
     return json((rows.results || []).map(mapExceptionRow));
   }
 
@@ -319,7 +323,7 @@ export async function handleScheduleExceptions(
       return json({ error: 'Укажи ID пары (class_id).' }, 400);
     }
 
-    const classRow = await env.DB.prepare('SELECT id FROM classes WHERE id=? AND user_id=?')
+    const classRow = await db.prepare('SELECT id FROM classes WHERE id=? AND user_id=?')
       .bind(body.class_id, userId)
       .first();
 
@@ -346,7 +350,7 @@ export async function handleScheduleExceptions(
     const note = body.note ? String(body.note).trim().slice(0, 200) : null;
 
     // Check if exception already exists for this (user_id, date, class_id)
-    const existing = await env.DB.prepare(
+    const existing = await db.prepare(
       'SELECT id FROM schedule_exceptions WHERE user_id=? AND date=? AND class_id=?'
     )
       .bind(userId, body.date, body.class_id)
@@ -355,21 +359,21 @@ export async function handleScheduleExceptions(
     let excId: string;
     if (existing) {
       excId = existing.id;
-      await env.DB.prepare(
+      await db.prepare(
         'UPDATE schedule_exceptions SET type=?,new_start=?,new_end=?,new_place=?,note=? WHERE id=? AND user_id=?'
       )
         .bind(body.type, newStart, newEnd, newPlace, note, excId, userId)
         .run();
     } else {
       excId = crypto.randomUUID();
-      await env.DB.prepare(
+      await db.prepare(
         'INSERT INTO schedule_exceptions(id,user_id,date,class_id,type,new_start,new_end,new_place,note) VALUES(?,?,?,?,?,?,?,?,?)'
       )
         .bind(excId, userId, body.date, body.class_id, body.type, newStart, newEnd, newPlace, note)
         .run();
     }
 
-    const created = await env.DB.prepare('SELECT * FROM schedule_exceptions WHERE id=? AND user_id=?')
+    const created = await db.prepare('SELECT * FROM schedule_exceptions WHERE id=? AND user_id=?')
       .bind(excId, userId)
       .first();
 
@@ -377,7 +381,7 @@ export async function handleScheduleExceptions(
   }
 
   if (request.method === 'DELETE' && id) {
-    const res = await env.DB.prepare('DELETE FROM schedule_exceptions WHERE id=? AND user_id=?')
+    const res = await db.prepare('DELETE FROM schedule_exceptions WHERE id=? AND user_id=?')
       .bind(id, userId)
       .run();
 

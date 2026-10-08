@@ -17,14 +17,15 @@ import { fetchLiveVehicles } from './tranzy.js';
 import { searchStops } from './commute.js';
 import { json } from './homework.js';
 import { Env } from './types.js';
+import { createDb, Database } from './db.js';
 
 const IN_MEMORY_CACHE = new Map<string, { expiresAt: number; data: TripPlanResult }>();
 
 /**
- * Checks and increments rate limit in D1: maximum 30 requests per hour per user.
+ * Checks and increments rate limit: maximum 30 requests per hour per user.
  */
 export async function checkTripPlanRateLimit(
-  db: D1Database,
+  db: Database | D1Database,
   userId: string,
   limitPerHour = 30
 ): Promise<{ allowed: boolean; remaining: number }> {
@@ -190,7 +191,8 @@ export async function handleTripPlan(
   }
 
   // 1. Rate limiting check (30 requests/hour per user)
-  const rateLimit = await checkTripPlanRateLimit(env.DB, userId, 30);
+  const db = createDb(env);
+  const rateLimit = await checkTripPlanRateLimit(db, userId, 30);
   if (!rateLimit.allowed) {
     return json(
       { error: 'Превышен лимит планирования поездок: не более 30 запросов в час.' },

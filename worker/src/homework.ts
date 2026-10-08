@@ -1,4 +1,5 @@
 import { Env } from './types.js';
+import { createDb } from './db.js';
 
 export const json = (data: unknown, status = 200): Response =>
   new Response(JSON.stringify(data), {
@@ -15,6 +16,7 @@ export async function handleHomework(
   userId: string,
   id?: string
 ): Promise<Response> {
+  const db = createDb(env);
   if (request.method === 'POST') {
     let body: any;
     try {
@@ -34,7 +36,7 @@ export async function handleHomework(
     }
 
     const idNew = crypto.randomUUID();
-    await env.DB.prepare(
+    await db.prepare(
       'INSERT INTO homework(id,user_id,title,subject,due_at,due_date,note,completed,telegram_reminder) VALUES(?,?,?,?,?,?,?,?,?)'
     )
       .bind(
@@ -50,7 +52,7 @@ export async function handleHomework(
       )
       .run();
 
-    const created = await env.DB.prepare('SELECT * FROM homework WHERE id=? AND user_id=?')
+    const created = await db.prepare('SELECT * FROM homework WHERE id=? AND user_id=?')
       .bind(idNew, userId)
       .first();
 
@@ -92,7 +94,7 @@ export async function handleHomework(
       k === 'completed' || k === 'telegramReminder' ? Number(Boolean(v)) : v
     );
 
-    const result = await env.DB.prepare(
+    const result = await db.prepare(
       `UPDATE homework SET ${sets},updated_at=CURRENT_TIMESTAMP WHERE id=? AND user_id=?`
     )
       .bind(...values, id, userId)
@@ -100,7 +102,7 @@ export async function handleHomework(
 
     if (!result.meta.changes) return json({ error: 'Задание не найдено.' }, 404);
 
-    const updated = await env.DB.prepare('SELECT * FROM homework WHERE id=? AND user_id=?')
+    const updated = await db.prepare('SELECT * FROM homework WHERE id=? AND user_id=?')
       .bind(id, userId)
       .first();
 
@@ -108,7 +110,7 @@ export async function handleHomework(
   }
 
   if (request.method === 'DELETE' && id) {
-    const result = await env.DB.prepare('DELETE FROM homework WHERE id=? AND user_id=?')
+    const result = await db.prepare('DELETE FROM homework WHERE id=? AND user_id=?')
       .bind(id, userId)
       .run();
     return json({ deleted: Boolean(result.meta.changes) });

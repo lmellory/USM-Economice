@@ -11,6 +11,7 @@ import {
 } from '@usm/shared';
 import { json } from './homework.js';
 import { Env } from './types.js';
+import { createDb } from './db.js';
 import { fetchLiveVehicles, fetchTranzyStopsRaw } from './tranzy.js';
 
 import { syncTranzyStops } from './transit.js';
@@ -42,8 +43,9 @@ export async function ensureStopsPopulated(env: Env): Promise<void> {
   if (now - LAST_D1_STOPS_ERROR_TIME < D1_RETRY_COOLDOWN_MS) {
     return;
   }
+  const db = createDb(env);
   try {
-    const res = await env.DB.prepare(
+    const res = await db.prepare(
       "SELECT value, updated_at FROM app_state WHERE key = 'stops_synced_at'"
     ).all<{ value: string; updated_at: number }>();
     const syncRow = res.results?.[0];
@@ -66,8 +68,9 @@ export async function searchStops(env: Env, query: string, limit: number = 500):
   const now = Date.now();
   if (!STOPS_CACHE || now - STOPS_CACHE_TIME > 3600000) {
     if (now - LAST_D1_STOPS_ERROR_TIME >= D1_RETRY_COOLDOWN_MS) {
+      const db = createDb(env);
       try {
-        const res = await env.DB.prepare(
+        const res = await db.prepare(
           "SELECT value FROM app_state WHERE key = 'stops_json'"
         ).all<{ value: string }>();
         const row = res.results?.[0];
@@ -121,7 +124,8 @@ export async function getUserCommuteOptions(
   env: Env,
   userId: string
 ): Promise<CommuteOption[]> {
-  const rows = await env.DB.prepare(
+  const db = createDb(env);
+  const rows = await db.prepare(
     'SELECT * FROM commute_options WHERE user_id=? ORDER BY destination ASC, position ASC'
   )
     .bind(userId)
@@ -129,12 +133,12 @@ export async function getUserCommuteOptions(
 
   if (!rows.results || rows.results.length === 0) {
     // Seed default for user if none exist yet
-    const seedRows = await env.DB.prepare(
+    const seedRows = await db.prepare(
       'SELECT * FROM commute_options WHERE user_id=1 ORDER BY destination ASC, position ASC'
     ).all<any>();
     if (seedRows.results && seedRows.results.length > 0) {
       const inserts = seedRows.results.map((r: any) =>
-        env.DB.prepare(
+        db.prepare(
           'INSERT OR IGNORE INTO commute_options(id, user_id, destination, name, position, enabled, is_configured, walk_before_minutes, walk_after_minutes, legs) VALUES(?,?,?,?,?,?,?,?,?,?)'
         ).bind(
           `${r.id}-${userId}`,
@@ -149,7 +153,7 @@ export async function getUserCommuteOptions(
           r.legs
         )
       );
-      await env.DB.batch(inserts);
+      await db.batch(inserts);
       return getUserCommuteOptions(env, userId);
     } else {
       const defaultLegsUnivA = JSON.stringify([
@@ -163,11 +167,11 @@ export async function getUserCommuteOptions(
         { mode: 'fixed_route', route_id: 16, route_short_name: '17', board_stop_id: null, board_stop_name: 'Strada Cuza Vodă', alight_stop_id: null, alight_stop_name: 'Complexul Sportiv USM (Ismail 1)' },
       ]);
       const fallbackInserts = [
-        env.DB.prepare('INSERT OR IGNORE INTO commute_options(id, user_id, destination, name, position, enabled, is_configured, walk_before_minutes, walk_after_minutes, legs) VALUES(?,?,?,?,?,?,?,?,?,?)').bind(`univ-a-${userId}`, userId, 'university', 'Университет · А', 1, 1, 0, 7, 5, defaultLegsUnivA),
-        env.DB.prepare('INSERT OR IGNORE INTO commute_options(id, user_id, destination, name, position, enabled, is_configured, walk_before_minutes, walk_after_minutes, legs) VALUES(?,?,?,?,?,?,?,?,?,?)').bind(`univ-b-${userId}`, userId, 'university', 'Университет · Б', 2, 1, 0, 7, 5, defaultLegsUnivB),
-        env.DB.prepare('INSERT OR IGNORE INTO commute_options(id, user_id, destination, name, position, enabled, is_configured, walk_before_minutes, walk_after_minutes, legs) VALUES(?,?,?,?,?,?,?,?,?,?)').bind(`sports-17-${userId}`, userId, 'sports', 'Физкультура', 1, 1, 0, 12, 3, defaultLegsSports),
+        db.prepare('INSERT OR IGNORE INTO commute_options(id, user_id, destination, name, position, enabled, is_configured, walk_before_minutes, walk_after_minutes, legs) VALUES(?,?,?,?,?,?,?,?,?,?)').bind(`univ-a-${userId}`, userId, 'university', 'Университет · А', 1, 1, 0, 7, 5, defaultLegsUnivA),
+        db.prepare('INSERT OR IGNORE INTO commute_options(id, user_id, destination, name, position, enabled, is_configured, walk_before_minutes, walk_after_minutes, legs) VALUES(?,?,?,?,?,?,?,?,?,?)').bind(`univ-b-${userId}`, userId, 'university', 'Университет · Б', 2, 1, 0, 7, 5, defaultLegsUnivB),
+        db.prepare('INSERT OR IGNORE INTO commute_options(id, user_id, destination, name, position, enabled, is_configured, walk_before_minutes, walk_after_minutes, legs) VALUES(?,?,?,?,?,?,?,?,?,?)').bind(`sports-17-${userId}`, userId, 'sports', 'Физкультура', 1, 1, 0, 12, 3, defaultLegsSports),
       ];
-      await env.DB.batch(fallbackInserts);
+      await db.batch(fallbackInserts);
       return getUserCommuteOptions(env, userId);
     }
   }
@@ -226,7 +230,8 @@ export async function evaluateUserCommute(
     searchStops(env, '', 500),
   ]);
 
-  const routesRows = await env.DB.prepare(
+  const db = createDb(env);
+  const routesRows = await db.prepare(
     'SELECT route_id, route_short_name FROM tranzy_routes WHERE route_type=11'
   ).all<any>();
 
@@ -323,13 +328,14 @@ export async function handleTransitRoutes(
       const legsJson = JSON.stringify(body.legs || []);
       const isConfigured = body.is_configured ? 1 : 0;
 
-      const updateResult = await env.DB.prepare(
+      const db = createDb(env);
+      const updateResult = await db.prepare(
         'UPDATE commute_options SET walk_before_minutes=?, walk_after_minutes=?, legs=?, is_configured=?, updated_at=CURRENT_TIMESTAMP WHERE id=? AND user_id=?'
       )
         .bind(walkBefore, walkAfter, legsJson, isConfigured, optionId, userId)
         .run();
 
-      const updated = await env.DB.prepare(
+      const updated = await db.prepare(
         'SELECT * FROM commute_options WHERE id=? AND user_id=?'
       )
         .bind(optionId, userId)

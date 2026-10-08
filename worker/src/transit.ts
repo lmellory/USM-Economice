@@ -1,4 +1,5 @@
 import { Env, TransitState } from './types.js';
+import { createDb } from './db.js';
 import {
   getTranzyHeaders,
   getTranzyBaseUrl,
@@ -49,9 +50,10 @@ export async function transit(env: Env): Promise<TransitState> {
     try {
       const routesList = await fetchTranzyRoutesRaw(env);
       if (routesList.length > 0) {
+          const db = createDb(env);
           const nowSec = Math.floor(Date.now() / 1000);
           const stmts = routesList.slice(0, 100).map((item: any) =>
-            env.DB.prepare(
+            db.prepare(
               'INSERT OR REPLACE INTO tranzy_routes(route_id, route_short_name, route_long_name, route_type, route_color, updated_at) VALUES(?,?,?,?,?,?)'
             ).bind(
               Number(item.route_id),
@@ -63,7 +65,7 @@ export async function transit(env: Env): Promise<TransitState> {
             )
           );
           for (let i = 0; i < stmts.length; i += 25) {
-            await env.DB.batch(stmts.slice(i, i + 25));
+            await db.batch(stmts.slice(i, i + 25));
           }
         }
         const trolleyCountsByRoute: Record<string, number> = {};
@@ -120,9 +122,10 @@ export async function syncTranzyStops(env: Env): Promise<{ count: number; error?
       return { count: 0 };
     }
 
+    const db = createDb(env);
     const nowSec = Math.floor(Date.now() / 1000);
     const stmts = stopsList.map((s: any) =>
-      env.DB.prepare(
+      db.prepare(
         'INSERT OR REPLACE INTO tranzy_stops(stop_id, stop_name, stop_desc, stop_lat, stop_lon, updated_at) VALUES(?,?,?,?,?,?)'
       ).bind(
         Number(s.stop_id),
@@ -135,7 +138,7 @@ export async function syncTranzyStops(env: Env): Promise<{ count: number; error?
     );
 
     for (let i = 0; i < stmts.length; i += 50) {
-      await env.DB.batch(stmts.slice(i, i + 50));
+      await db.batch(stmts.slice(i, i + 50));
     }
 
     // Сохраняем весь список остановок одной строкой в app_state и метку синхронизации
@@ -148,11 +151,11 @@ export async function syncTranzyStops(env: Env): Promise<{ count: number; error?
     }));
     const stopsJson = JSON.stringify(normalizedStops);
 
-    await env.DB.batch([
-      env.DB.prepare(
+    await db.batch([
+      db.prepare(
         'INSERT INTO app_state(key, value, updated_at) VALUES(?,?,?) ON CONFLICT(key) DO UPDATE SET value=excluded.value, updated_at=excluded.updated_at'
       ).bind('stops_json', stopsJson, nowSec),
-      env.DB.prepare(
+      db.prepare(
         'INSERT INTO app_state(key, value, updated_at) VALUES(?,?,?) ON CONFLICT(key) DO UPDATE SET value=excluded.value, updated_at=excluded.updated_at'
       ).bind('stops_synced_at', String(nowSec), nowSec),
     ]);
@@ -165,7 +168,8 @@ export async function syncTranzyStops(env: Env): Promise<{ count: number; error?
 
 export async function saveTransit(env: Env): Promise<void> {
   const t = await transit(env);
-  await env.DB.prepare(
+  const db = createDb(env);
+  await db.prepare(
     'INSERT INTO transit_state(id,available,source,checked_at,note,estimate_minutes,vehicle_count,routes_summary) VALUES(1,?,?,?,?,?,?,?) ON CONFLICT(id) DO UPDATE SET available=excluded.available,source=excluded.source,checked_at=excluded.checked_at,note=excluded.note,estimate_minutes=excluded.estimate_minutes,vehicle_count=excluded.vehicle_count,routes_summary=excluded.routes_summary'
   )
     .bind(
@@ -180,7 +184,7 @@ export async function saveTransit(env: Env): Promise<void> {
     .run();
 
   try {
-    const res = await env.DB.prepare(
+    const res = await db.prepare(
       "SELECT value, updated_at FROM app_state WHERE key = 'stops_synced_at'"
     ).all<{ value: string; updated_at: number }>();
     const syncRow = res.results?.[0];

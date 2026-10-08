@@ -7,6 +7,7 @@ import {
   mapClassRow,
   mapExceptionRow,
 } from './classes.js';
+import { createDb } from './db.js';
 import { handleHomework, json } from './homework.js';
 import { notificationTick } from './notifications.js';
 import { dbSettings, validatedSettings } from './settings.js';
@@ -17,6 +18,8 @@ import { Env } from './types.js';
 import { handleWebhook } from './webhook.js';
 
 async function apiRequest(request: Request, env: Env, path: string): Promise<Response> {
+  const db = createDb(env);
+
   if (path === '/health') {
     const url = new URL(request.url);
     if (url.searchParams.has('refresh')) {
@@ -28,21 +31,23 @@ async function apiRequest(request: Request, env: Env, path: string): Promise<Res
     let t: any = null;
     let routesCount = 0;
     let stopsPresent = false;
-    let d1Status = 'ok';
+    let dbStatus = 'ok';
     try {
-      t = await env.DB.prepare('SELECT * FROM transit_state WHERE id=1').first<any>();
-      const routes = await env.DB.prepare('SELECT route_id, route_short_name, route_type FROM tranzy_routes LIMIT 50').all<any>();
+      t = await db.prepare('SELECT * FROM transit_state WHERE id=1').first<any>();
+      const routes = await db.prepare('SELECT route_id, route_short_name, route_type FROM tranzy_routes LIMIT 50').all<any>();
       routesCount = routes.results?.length ?? 0;
-      const stopsRow = await env.DB.prepare('SELECT 1 FROM tranzy_stops LIMIT 1').all<any>();
+      const stopsRow = await db.prepare('SELECT 1 FROM tranzy_stops LIMIT 1').all<any>();
       stopsPresent = (stopsRow.results?.length ?? 0) > 0;
-    } catch (d1Err: any) {
-      d1Status = d1Err?.message || 'd1_quota_exceeded';
+    } catch (dbErr: any) {
+      dbStatus = dbErr?.message || 'db_error';
     }
 
     return json({
       ok: true,
       service: 'usm-life-worker',
-      d1Status,
+      dbBackend: db.backend,
+      dbStatus,
+      d1Status: dbStatus,
       transit: t,
       routesCount,
       stopsPresent,
@@ -70,16 +75,16 @@ async function apiRequest(request: Request, env: Env, path: string): Promise<Res
   }
 
   try {
-    await env.DB.batch([
-      env.DB.prepare(
+    await db.batch([
+      db.prepare(
         'INSERT INTO users(id,first_name) VALUES(?,?) ON CONFLICT(id) DO UPDATE SET first_name=excluded.first_name'
       ).bind(String(user.id), user.first_name || ''),
-      env.DB.prepare('INSERT INTO settings(user_id) VALUES(?) ON CONFLICT(user_id) DO NOTHING').bind(
+      db.prepare('INSERT INTO settings(user_id) VALUES(?) ON CONFLICT(user_id) DO NOTHING').bind(
         String(user.id)
       ),
     ]);
   } catch (userDbErr) {
-    console.warn('Failed to ensure user/settings in DB (possible D1 quota limit):', userDbErr);
+    console.warn('Failed to ensure user/settings in DB:', userDbErr);
   }
 
   if (path === '/api/bootstrap' && request.method === 'GET') {
@@ -94,19 +99,19 @@ async function apiRequest(request: Request, env: Env, path: string): Promise<Res
       await ensureClassesPopulated(env, String(user.id));
 
       const [sRow, homework, classRows, excRows, tRow] = await Promise.all([
-        env.DB.prepare('SELECT * FROM settings WHERE user_id=?').bind(String(user.id)).first(),
-        env.DB.prepare(
+        db.prepare('SELECT * FROM settings WHERE user_id=?').bind(String(user.id)).first(),
+        db.prepare(
           'SELECT * FROM homework WHERE user_id=? ORDER BY completed ASC, CASE WHEN due_at IS NULL THEN 1 ELSE 0 END, due_at ASC, created_at DESC'
         )
           .bind(String(user.id))
           .all(),
-        env.DB.prepare('SELECT * FROM classes WHERE user_id=? ORDER BY day ASC, start ASC, position ASC')
+        db.prepare('SELECT * FROM classes WHERE user_id=? ORDER BY day ASC, start ASC, position ASC')
           .bind(String(user.id))
           .all(),
-        env.DB.prepare('SELECT * FROM schedule_exceptions WHERE user_id=? ORDER BY date ASC')
+        db.prepare('SELECT * FROM schedule_exceptions WHERE user_id=? ORDER BY date ASC')
           .bind(String(user.id))
           .all(),
-        env.DB.prepare('SELECT * FROM transit_state WHERE id=1').first<any>(),
+        db.prepare('SELECT * FROM transit_state WHERE id=1').first<any>(),
       ]);
 
       settingsRow = sRow;
@@ -116,7 +121,7 @@ async function apiRequest(request: Request, env: Env, path: string): Promise<Res
       transitRow = tRow;
       commuteOptions = await getUserCommuteOptions(env, String(user.id));
     } catch (d1Err) {
-      console.warn('D1 bootstrap query failed (possible quota limit):', d1Err);
+      console.warn('DB bootstrap query failed:', d1Err);
     }
 
     const t = transitRow
@@ -162,7 +167,7 @@ async function apiRequest(request: Request, env: Env, path: string): Promise<Res
 
   if (path === '/api/transit' && request.method === 'GET') {
     try {
-      const t = await env.DB.prepare('SELECT * FROM transit_state WHERE id=1').first<any>();
+      const t = await db.prepare('SELECT * FROM transit_state WHERE id=1').first<any>();
       if (!t) return json(await transit(env));
       return json({
         available: Boolean(t.available),
@@ -185,21 +190,21 @@ async function apiRequest(request: Request, env: Env, path: string): Promise<Res
       if (!entries.length) {
         return json(
           dbSettings(
-            await env.DB.prepare('SELECT * FROM settings WHERE user_id=?')
+            await db.prepare('SELECT * FROM settings WHERE user_id=?')
               .bind(String(user.id))
               .first()
           )
         );
       }
       const sets = entries.map(([col]) => `${col}=?`).join(',');
-      await env.DB.prepare(
+      await db.prepare(
         `UPDATE settings SET ${sets},updated_at=CURRENT_TIMESTAMP WHERE user_id=?`
       )
         .bind(...entries.map(([, v]) => v), String(user.id))
         .run();
       return json(
         dbSettings(
-          await env.DB.prepare('SELECT * FROM settings WHERE user_id=?')
+          await db.prepare('SELECT * FROM settings WHERE user_id=?')
             .bind(String(user.id))
             .first()
         )
@@ -257,10 +262,11 @@ export default {
   },
 
   async scheduled(_event: ScheduledController, env: Env, ctx: ExecutionContext): Promise<void> {
+    const db = createDb(env);
     ctx.waitUntil(
       Promise.allSettled([
         (async () => {
-          const last = await env.DB.prepare(
+          const last = await db.prepare(
             'SELECT checked_at FROM transit_state WHERE id=1'
           ).first<{
             checked_at: string;
