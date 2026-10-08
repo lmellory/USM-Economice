@@ -191,3 +191,61 @@ export interface RoutineResult {
   bedMin: number;
   leaveMin: number | null;
 }
+
+export type TrafficLevel = 'free' | 'dense' | 'jam' | 'no_data';
+
+export interface TrafficInfo {
+  level: TrafficLevel;
+  label: string;
+  ratio?: number;
+  durationSeconds?: number;
+  staticDurationSeconds?: number | null;
+}
+
+export interface TripPlanRequest {
+  fromLat: number;
+  fromLon: number;
+  toLat: number;
+  toLon: number;
+}
+
+export interface TripTransitStep {
+  travelMode: 'TRANSIT';
+  lineShortName: string;
+  vehicleType: string;
+  departureStopName: string;
+  arrivalStopName: string;
+  departureTime?: string;
+  arrivalTime?: string;
+  tranzyRouteId?: number;
+  nextVehicleEtaMinutes?: number;
+  nextVehicleDistanceMeters?: number;
+  nextVehicleSource?: 'polyline' | 'approximate';
+}
+
+export interface TripWalkStep {
+  travelMode: 'WALK';
+  durationSeconds: number;
+  distanceMeters?: number;
+}
+
+export type TripStep = TripTransitStep | TripWalkStep;
+
+export interface TripRouteOption {
+  id: string;
+  totalDurationSeconds: number;
+  totalDurationFormatted: string;
+  arrivalTimeFormatted: string;
+  encodedPolyline?: string;
+  steps: TripStep[];
+  traffic: TrafficInfo;
+}
+
+export interface TripPlanResult {
+  from: { lat: number; lon: number; nearestStop?: TransitStop | null };
+  to: { lat: number; lon: number; nearestStop?: TransitStop | null };
+  routes: TripRouteOption[];
+  source: 'google_and_tranzy' | 'tranzy_only' | 'error';
+  notice?: string;
+}
+

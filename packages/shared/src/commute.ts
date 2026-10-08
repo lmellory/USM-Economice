@@ -10,6 +10,8 @@ import {
   VehiclePosition,
   TrackedTrolleySummary,
   LiveTrackedVehicle,
+  TrafficLevel,
+  TrafficInfo,
 } from './types.js';
 
 export function haversineDistanceMeters(
@@ -709,5 +711,97 @@ export function getLiveTrackedVehicles(
   }
 
   return liveList;
+}
+
+/**
+ * Geographical bounding box for Chișinău municipality (valid input boundaries).
+ */
+export const CHISINAU_BOUNDS = {
+  minLat: 46.9,
+  maxLat: 47.1,
+  minLon: 28.7,
+  maxLon: 28.95,
+} as const;
+
+export function isWithinChisinauBounds(lat: number, lon: number): boolean {
+  if (typeof lat !== 'number' || typeof lon !== 'number' || isNaN(lat) || isNaN(lon)) {
+    return false;
+  }
+  return (
+    lat >= CHISINAU_BOUNDS.minLat &&
+    lat <= CHISINAU_BOUNDS.maxLat &&
+    lon >= CHISINAU_BOUNDS.minLon &&
+    lon <= CHISINAU_BOUNDS.maxLon
+  );
+}
+
+export const TRAFFIC_RATIO_FREE = 1.15;
+export const TRAFFIC_RATIO_DENSE = 1.40;
+
+/**
+ * Safely parses Google Routes duration string (e.g. "689s", "540s") to seconds.
+ */
+export function parseDurationSeconds(durationStr?: string | null): number | null {
+  if (!durationStr || typeof durationStr !== 'string') return null;
+  const match = durationStr.trim().match(/^(\d+)(?:\.\d+)?s$/i);
+  if (!match) return null;
+  const val = parseInt(match[1], 10);
+  return isNaN(val) ? null : val;
+}
+
+/**
+ * Computes traffic level from actual duration and static duration:
+ * - If staticDuration is null/undefined/<=0 -> level 'no_data' («нет данных»)
+ * - duration / staticDuration < 1.15 -> 'free' («свободно»)
+ * - 1.15 .. 1.40 -> 'dense' («плотно»)
+ * - > 1.40 -> 'jam' («пробки»)
+ */
+export function calculateTrafficLevel(
+  durationSeconds: number,
+  staticDurationSeconds: number | null
+): { level: TrafficLevel; label: string; ratio?: number } {
+  if (
+    staticDurationSeconds == null ||
+    staticDurationSeconds <= 0 ||
+    durationSeconds <= 0
+  ) {
+    return { level: 'no_data', label: 'нет данных' };
+  }
+
+  const ratio = durationSeconds / staticDurationSeconds;
+  if (ratio < TRAFFIC_RATIO_FREE) {
+    return { level: 'free', label: 'свободно', ratio: Number(ratio.toFixed(2)) };
+  }
+  if (ratio <= TRAFFIC_RATIO_DENSE) {
+    return { level: 'dense', label: 'плотно', ratio: Number(ratio.toFixed(2)) };
+  }
+  return { level: 'jam', label: 'пробки', ratio: Number(ratio.toFixed(2)) };
+}
+
+/**
+ * Finds the nearest Tranzy stop within maxDistanceMeters (default 400m).
+ */
+export function findNearestStop(
+  lat: number,
+  lon: number,
+  stops: TransitStop[],
+  maxDistanceMeters = 400
+): { stop: TransitStop; distanceMeters: number } | null {
+  if (!stops || stops.length === 0) return null;
+  let nearest: TransitStop | null = null;
+  let minDistance = Infinity;
+
+  for (const s of stops) {
+    const d = haversineDistanceMeters(lat, lon, s.stop_lat, s.stop_lon);
+    if (d < minDistance) {
+      minDistance = d;
+      nearest = s;
+    }
+  }
+
+  if (nearest && minDistance <= maxDistanceMeters) {
+    return { stop: nearest, distanceMeters: Math.round(minDistance) };
+  }
+  return null;
 }
 
