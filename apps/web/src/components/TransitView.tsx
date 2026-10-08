@@ -135,6 +135,9 @@ export const TransitView: React.FC<TransitViewProps> = ({
   const [googleMapsError, setGoogleMapsError] = useState<string | null>(null);
 
   // Common UI States
+  const [currentZoom, setCurrentZoom] = useState<number>(13);
+  const activeInfoWindowRef = useRef<any>(null);
+  const pickingPointRef = useRef<'A' | 'B' | null>(null);
   const [mapMode, setMapMode] = useState<'street' | 'satellite'>('street');
   const [showStops, setShowStops] = useState(true);
   const [showTraffic, setShowTraffic] = useState(true);
@@ -155,6 +158,10 @@ export const TransitView: React.FC<TransitViewProps> = ({
   const [selectedRouteIndex, setSelectedRouteIndex] = useState<number>(0);
   const [isLoadingPlan, setIsLoadingPlan] = useState<boolean>(false);
   const [planError, setPlanError] = useState<string | null>(null);
+
+  useEffect(() => {
+    pickingPointRef.current = pickingPoint;
+  }, [pickingPoint]);
 
   const theme = settings.theme || 'light';
   const isDark = theme.includes('dark');
@@ -277,22 +284,24 @@ export const TransitView: React.FC<TransitViewProps> = ({
     [pointB, stopsList]
   );
 
-  // Handle map click for points selection
+  // Handle map click: set A/B point if picking, otherwise close open info windows / cards
   const handleMapClickPoint = useCallback(
     (lat: number, lon: number) => {
-      if (pickingPoint === 'A') {
+      if (pickingPointRef.current === 'A') {
         setPointA({ lat, lon });
         setPickingPoint(null);
-      } else if (pickingPoint === 'B') {
+      } else if (pickingPointRef.current === 'B') {
         setPointB({ lat, lon });
         setPickingPoint(null);
-      } else if (!pointA) {
-        setPointA({ lat, lon });
-      } else if (!pointB) {
-        setPointB({ lat, lon });
+      } else {
+        if (activeInfoWindowRef.current) {
+          activeInfoWindowRef.current.close();
+          activeInfoWindowRef.current = null;
+        }
+        setSelectedStop(null);
       }
     },
-    [pickingPoint, pointA, pointB]
+    []
   );
 
   // Auto-calculate trip plan when both points are present
@@ -351,8 +360,19 @@ export const TransitView: React.FC<TransitViewProps> = ({
       streetViewControl: false,
       rotateControl: false,
       fullscreenControl: false,
+      styles: [
+        { featureType: 'poi', stylers: [{ visibility: 'off' }] },
+        { featureType: 'transit', elementType: 'labels', stylers: [{ visibility: 'off' }] },
+      ],
     });
     googleMapInstanceRef.current = map;
+
+    map.addListener('zoom_changed', () => {
+      const z = map.getZoom();
+      if (typeof z === 'number') {
+        setCurrentZoom(z);
+      }
+    });
 
     trafficLayerRef.current = new window.google.maps.TrafficLayer();
     if (showTraffic) {
@@ -432,7 +452,11 @@ export const TransitView: React.FC<TransitViewProps> = ({
       });
 
       marker.addListener('click', () => {
+        if (activeInfoWindowRef.current) {
+          activeInfoWindowRef.current.close();
+        }
         info.open(map, marker);
+        activeInfoWindowRef.current = info;
         setSelectedRouteFilter(veh.route_short_name);
       });
 
@@ -440,7 +464,7 @@ export const TransitView: React.FC<TransitViewProps> = ({
     });
   }, [isGoogleMode, activeVehicles, selectedRouteFilter]);
 
-  // Render Stops on Google Map
+  // Render Stops on Google Map (visible only at zoom >= 14)
   useEffect(() => {
     if (!isGoogleMode || !googleMapInstanceRef.current || !window.google?.maps) return;
     const map = googleMapInstanceRef.current;
@@ -448,7 +472,7 @@ export const TransitView: React.FC<TransitViewProps> = ({
     googleStopMarkersRef.current.forEach((m) => m.setMap(null));
     googleStopMarkersRef.current = [];
 
-    if (!showStops) return;
+    if (!showStops || currentZoom < 14) return;
 
     stopsList.forEach((stop) => {
       const isSpecial =
@@ -487,13 +511,17 @@ export const TransitView: React.FC<TransitViewProps> = ({
       });
 
       marker.addListener('click', () => {
+        if (activeInfoWindowRef.current) {
+          activeInfoWindowRef.current.close();
+        }
         info.open(map, marker);
+        activeInfoWindowRef.current = info;
         setSelectedStop(stop);
       });
 
       googleStopMarkersRef.current.push(marker);
     });
-  }, [isGoogleMode, stopsList, showStops]);
+  }, [isGoogleMode, stopsList, showStops, currentZoom]);
 
   // Render User Location on Google Map
   useEffect(() => {
