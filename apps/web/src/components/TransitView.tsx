@@ -6,6 +6,7 @@ import {
   Crosshair,
   MapPin,
   Bus,
+  Car,
   Layers,
   RefreshCw,
   X,
@@ -13,10 +14,30 @@ import {
   Navigation,
   CheckCircle2,
   Settings2,
+  CircleAlert,
+  Footprints,
+  Clock,
+  ArrowRight,
 } from 'lucide-react';
 import { LiveTrackedVehicle, TransitStop, CommuteOption } from '../lib/plan.js';
-import { haversineDistanceMeters } from '@usm/shared';
+import {
+  haversineDistanceMeters,
+  findNearestStop,
+  TripPlanResult,
+  TripRouteOption,
+  TripStep,
+  TripTransitStep,
+  TripWalkStep,
+  TrafficLevel,
+} from '@usm/shared';
 import { CHISINAU_ROUTES_TRACKS, getRouteTrack } from '../lib/routes-geometry.js';
+
+declare global {
+  interface Window {
+    google?: any;
+    gm_authFailure?: () => void;
+  }
+}
 
 interface TransitViewProps {
   vehicles: LiveTrackedVehicle[];
@@ -25,6 +46,7 @@ interface TransitViewProps {
   onRefresh?: () => void;
   request?: (path: string, options?: any) => Promise<any>;
   onOpenCommuteSettings?: () => void;
+  mapsBrowserKey?: string;
 }
 
 const ROUTE_COLORS: Record<string, string> = {
@@ -39,6 +61,58 @@ const ROUTE_COLORS: Record<string, string> = {
 
 const DEFAULT_CENTER = { lat: 46.995, lon: 28.845 }; // Centered between Botanica & Centru
 
+let googleMapsPromise: Promise<any> | null = null;
+
+function loadGoogleMaps(apiKey: string): Promise<any> {
+  if (typeof window !== 'undefined' && window.google?.maps) {
+    return Promise.resolve(window.google);
+  }
+  if (googleMapsPromise) return googleMapsPromise;
+
+  googleMapsPromise = new Promise((resolve, reject) => {
+    const existing = document.getElementById('google-maps-js-sdk');
+    if (existing) {
+      if (window.google?.maps) {
+        return resolve(window.google);
+      }
+      existing.addEventListener('load', () => resolve(window.google));
+      existing.addEventListener('error', (e) => reject(e));
+      return;
+    }
+    const script = document.createElement('script');
+    script.id = 'google-maps-js-sdk';
+    script.src = `https://maps.googleapis.com/maps/api/js?key=${encodeURIComponent(
+      apiKey
+    )}&libraries=geometry`;
+    script.async = true;
+    script.onload = () => {
+      if (window.google?.maps) {
+        resolve(window.google);
+      } else {
+        reject(new Error('Google Maps SDK loaded but google.maps is not available'));
+      }
+    };
+    script.onerror = () => reject(new Error('Failed to load Google Maps SDK'));
+    document.head.appendChild(script);
+  });
+
+  return googleMapsPromise;
+}
+
+function getTrafficBadge(level: TrafficLevel, label?: string) {
+  switch (level) {
+    case 'free':
+      return { text: label || '🟢 Свободно', className: 'traffic-badge free' };
+    case 'dense':
+      return { text: label || '🟡 Плотно', className: 'traffic-badge dense' };
+    case 'jam':
+      return { text: label || '🔴 Пробки', className: 'traffic-badge jam' };
+    case 'no_data':
+    default:
+      return { text: label || '⚪ Нет данных', className: 'traffic-badge no_data' };
+  }
+}
+
 export const TransitView: React.FC<TransitViewProps> = ({
   vehicles,
   options = [],
@@ -46,7 +120,9 @@ export const TransitView: React.FC<TransitViewProps> = ({
   onRefresh,
   request,
   onOpenCommuteSettings,
+  mapsBrowserKey,
 }) => {
+  // Leaflet references
   const containerRef = useRef<HTMLDivElement>(null);
   const mapInstanceRef = useRef<L.Map | null>(null);
   const streetLayerRef = useRef<L.TileLayer | null>(null);
@@ -57,9 +133,25 @@ export const TransitView: React.FC<TransitViewProps> = ({
   const stopsLayerRef = useRef<L.LayerGroup | null>(null);
   const userMarkerRef = useRef<L.Marker | null>(null);
 
-  // States
+  // Google Maps references
+  const googleContainerRef = useRef<HTMLDivElement>(null);
+  const googleMapInstanceRef = useRef<any>(null);
+  const trafficLayerRef = useRef<any>(null);
+  const googleTrolleyMarkersRef = useRef<any[]>([]);
+  const googleStopMarkersRef = useRef<any[]>([]);
+  const googleUserMarkerRef = useRef<any>(null);
+  const tripPolylineRef = useRef<any>(null);
+  const endpointMarkersRef = useRef<{ markerA?: any; markerB?: any }>({});
+
+  // Engine & Loading States
+  const [googleMapsLoaded, setGoogleMapsLoaded] = useState(false);
+  const [googleMapsError, setGoogleMapsError] = useState<string | null>(null);
+
+  // Common UI States
   const [mapMode, setMapMode] = useState<'street' | 'satellite'>('street');
   const [showStops, setShowStops] = useState(true);
+  const [showTraffic, setShowTraffic] = useState(true);
+  const [showPlanner, setShowPlanner] = useState(true);
   const [selectedRouteFilter, setSelectedRouteFilter] = useState<string>('all');
   const [searchQuery, setSearchQuery] = useState('');
   const [userLocation, setUserLocation] = useState<{ lat: number; lon: number } | null>(null);
@@ -67,6 +159,15 @@ export const TransitView: React.FC<TransitViewProps> = ({
   const [stopsList, setStopsList] = useState<TransitStop[]>([]);
   const [selectedStop, setSelectedStop] = useState<TransitStop | null>(null);
   const [isRefreshing, setIsRefreshing] = useState(false);
+
+  // Trip Planner States
+  const [pickingPoint, setPickingPoint] = useState<'A' | 'B' | null>(null);
+  const [pointA, setPointA] = useState<{ lat: number; lon: number; name?: string } | null>(null);
+  const [pointB, setPointB] = useState<{ lat: number; lon: number; name?: string } | null>(null);
+  const [tripPlan, setTripPlan] = useState<TripPlanResult | null>(null);
+  const [selectedRouteIndex, setSelectedRouteIndex] = useState<number>(0);
+  const [isLoadingPlan, setIsLoadingPlan] = useState<boolean>(false);
+  const [planError, setPlanError] = useState<string | null>(null);
 
   const theme = settings.theme || 'light';
   const isDark = theme.includes('dark');
@@ -140,22 +241,394 @@ export const TransitView: React.FC<TransitViewProps> = ({
     return () => clearInterval(timer);
   }, [fetchLiveVehicles]);
 
+  // Load Google Maps SDK if key is provided
+  useEffect(() => {
+    if (!mapsBrowserKey) return;
+    let isMounted = true;
+
+    window.gm_authFailure = () => {
+      if (isMounted) {
+        setGoogleMapsError('Ошибка авторизации ключа Google Maps');
+      }
+    };
+
+    loadGoogleMaps(mapsBrowserKey)
+      .then(() => {
+        if (isMounted) setGoogleMapsLoaded(true);
+      })
+      .catch((err) => {
+        if (isMounted) setGoogleMapsError(err?.message || 'Не удалось загрузить Google Maps SDK');
+      });
+
+    return () => {
+      isMounted = false;
+    };
+  }, [mapsBrowserKey]);
+
+  const isGoogleMode = Boolean(mapsBrowserKey && googleMapsLoaded && !googleMapsError);
+
   // Available unique routes
   const availableRoutes = useMemo(() => {
     const fromVehicles = activeVehicles.map((v) => v.route_short_name);
     return Array.from(new Set(['2', '17', '4', '22', '10', '24', ...fromVehicles])).filter(Boolean);
   }, [activeVehicles]);
 
-  // Key boarding stop from commute options (e.g., Cuza Vodă / Dacia)
+  // Key boarding stop from commute options
   const boardingStopName = useMemo(() => {
     const primaryOption = options[0];
     const firstLeg = primaryOption?.legs?.[0];
     return firstLeg?.board_stop_name || (firstLeg as any)?.boardStopName || '';
   }, [options]);
 
-  // Initialize Map
+  // Nearest stops for points A and B (snapping within 400m)
+  const nearestStopA = useMemo(
+    () => (pointA ? findNearestStop(pointA.lat, pointA.lon, stopsList, 400) : null),
+    [pointA, stopsList]
+  );
+  const nearestStopB = useMemo(
+    () => (pointB ? findNearestStop(pointB.lat, pointB.lon, stopsList, 400) : null),
+    [pointB, stopsList]
+  );
+
+  // Handle map click for points selection
+  const handleMapClickPoint = useCallback(
+    (lat: number, lon: number) => {
+      if (pickingPoint === 'A') {
+        setPointA({ lat, lon });
+        setPickingPoint(null);
+      } else if (pickingPoint === 'B') {
+        setPointB({ lat, lon });
+        setPickingPoint(null);
+      } else if (!pointA) {
+        setPointA({ lat, lon });
+      } else if (!pointB) {
+        setPointB({ lat, lon });
+      }
+    },
+    [pickingPoint, pointA, pointB]
+  );
+
+  // Auto-calculate trip plan when both points are present
+  const fetchTripPlan = useCallback(
+    async (from: { lat: number; lon: number }, to: { lat: number; lon: number }) => {
+      if (!request) return;
+      setIsLoadingPlan(true);
+      setPlanError(null);
+      try {
+        const res = await request(
+          `/api/trip/plan?fromLat=${from.lat.toFixed(6)}&fromLon=${from.lon.toFixed(
+            6
+          )}&toLat=${to.lat.toFixed(6)}&toLon=${to.lon.toFixed(6)}`
+        );
+        if (res && res.routes) {
+          setTripPlan(res);
+          setSelectedRouteIndex(0);
+        } else if (res && res.error) {
+          setPlanError(res.error);
+        }
+      } catch (err: any) {
+        setPlanError(err?.message || 'Ошибка планирования поездки');
+      } finally {
+        setIsLoadingPlan(false);
+      }
+    },
+    [request]
+  );
+
   useEffect(() => {
-    if (!containerRef.current) return;
+    if (pointA && pointB) {
+      fetchTripPlan(pointA, pointB);
+    }
+  }, [pointA, pointB, fetchTripPlan]);
+
+  // -------------------------------------------------------------
+  // GOOGLE MAPS IMPLEMENTATION
+  // -------------------------------------------------------------
+  useEffect(() => {
+    if (!isGoogleMode || !googleContainerRef.current) return;
+
+    const initLat = userLocation?.lat ?? DEFAULT_CENTER.lat;
+    const initLon = userLocation?.lon ?? DEFAULT_CENTER.lon;
+
+    const map = new window.google.maps.Map(googleContainerRef.current, {
+      center: { lat: initLat, lng: initLon },
+      zoom: 13,
+      mapTypeId: mapMode === 'satellite' ? 'hybrid' : 'roadmap',
+      disableDefaultUI: true,
+      zoomControl: false,
+      mapTypeControl: false,
+      scaleControl: true,
+      streetViewControl: false,
+      rotateControl: false,
+      fullscreenControl: false,
+    });
+    googleMapInstanceRef.current = map;
+
+    trafficLayerRef.current = new window.google.maps.TrafficLayer();
+    if (showTraffic) {
+      trafficLayerRef.current.setMap(map);
+    }
+
+    map.addListener('click', (e: any) => {
+      const lat = e.latLng.lat();
+      const lon = e.latLng.lng();
+      handleMapClickPoint(lat, lon);
+    });
+
+    return () => {
+      googleMapInstanceRef.current = null;
+    };
+  }, [isGoogleMode]);
+
+  // Update Google Maps mode (Street / Satellite)
+  useEffect(() => {
+    if (!isGoogleMode || !googleMapInstanceRef.current) return;
+    googleMapInstanceRef.current.setMapTypeId(mapMode === 'satellite' ? 'hybrid' : 'roadmap');
+  }, [isGoogleMode, mapMode]);
+
+  // Update Google Maps Traffic Layer
+  useEffect(() => {
+    if (!isGoogleMode || !googleMapInstanceRef.current || !trafficLayerRef.current) return;
+    trafficLayerRef.current.setMap(showTraffic ? googleMapInstanceRef.current : null);
+  }, [isGoogleMode, showTraffic]);
+
+  // Render Trolleybuses on Google Map
+  useEffect(() => {
+    if (!isGoogleMode || !googleMapInstanceRef.current || !window.google?.maps) return;
+    const map = googleMapInstanceRef.current;
+
+    googleTrolleyMarkersRef.current.forEach((m) => m.setMap(null));
+    googleTrolleyMarkersRef.current = [];
+
+    const filtered = activeVehicles.filter((v) => {
+      if (selectedRouteFilter !== 'all' && v.route_short_name !== selectedRouteFilter) {
+        return false;
+      }
+      return true;
+    });
+
+    filtered.forEach((veh) => {
+      const color = ROUTE_COLORS[veh.route_short_name] || '#2563eb';
+      const speedKmH = Math.round(veh.speed);
+      const routeVehiclesCount = activeVehicles.filter(
+        (v) => v.route_short_name === veh.route_short_name
+      ).length;
+
+      const svg = `
+        <svg xmlns="http://www.w3.org/2000/svg" width="40" height="26" viewBox="0 0 40 26">
+          <rect width="40" height="26" rx="13" fill="${color}" stroke="#ffffff" stroke-width="2"/>
+          <text x="20" y="17" fill="#ffffff" font-size="12" font-weight="bold" text-anchor="middle" font-family="sans-serif">№${veh.route_short_name}</text>
+        </svg>
+      `;
+
+      const marker = new window.google.maps.Marker({
+        position: { lat: veh.latitude, lng: veh.longitude },
+        map,
+        icon: {
+          url: `data:image/svg+xml;charset=UTF-8,${encodeURIComponent(svg)}`,
+          scaledSize: new window.google.maps.Size(40, 26),
+          anchor: new window.google.maps.Point(20, 13),
+        },
+        title: `Троллейбус №${veh.route_short_name}`,
+      });
+
+      const info = new window.google.maps.InfoWindow({
+        content: `
+          <div style="padding: 4px 6px; font-family: sans-serif; color: #111;">
+            <strong style="color: ${color}">Троллейбус №${veh.route_short_name}</strong> (борт ${veh.label || '—'})<br/>
+            <small>Скорость: ${speedKmH} км/ч · На линии: ${routeVehiclesCount} машин</small>
+          </div>
+        `,
+      });
+
+      marker.addListener('click', () => {
+        info.open(map, marker);
+        setSelectedRouteFilter(veh.route_short_name);
+      });
+
+      googleTrolleyMarkersRef.current.push(marker);
+    });
+  }, [isGoogleMode, activeVehicles, selectedRouteFilter]);
+
+  // Render Stops on Google Map
+  useEffect(() => {
+    if (!isGoogleMode || !googleMapInstanceRef.current || !window.google?.maps) return;
+    const map = googleMapInstanceRef.current;
+
+    googleStopMarkersRef.current.forEach((m) => m.setMap(null));
+    googleStopMarkersRef.current = [];
+
+    if (!showStops) return;
+
+    stopsList.forEach((stop) => {
+      const isSpecial =
+        stop.stop_name.toLowerCase().includes('cuza vodă') ||
+        stop.stop_name.toLowerCase().includes('usm') ||
+        stop.stop_name.toLowerCase().includes('stat');
+
+      const svg = `
+        <svg xmlns="http://www.w3.org/2000/svg" width="${isSpecial ? 22 : 12}" height="${
+        isSpecial ? 22 : 12
+      }" viewBox="0 0 22 22">
+          <circle cx="11" cy="11" r="9" fill="${
+            isSpecial ? '#7c3aed' : '#64748b'
+          }" stroke="#ffffff" stroke-width="2"/>
+        </svg>
+      `;
+
+      const marker = new window.google.maps.Marker({
+        position: { lat: stop.stop_lat, lng: stop.stop_lon },
+        map,
+        icon: {
+          url: `data:image/svg+xml;charset=UTF-8,${encodeURIComponent(svg)}`,
+          scaledSize: new window.google.maps.Size(isSpecial ? 22 : 12, isSpecial ? 22 : 12),
+          anchor: new window.google.maps.Point(isSpecial ? 11 : 6, isSpecial ? 11 : 6),
+        },
+        title: stop.stop_name,
+      });
+
+      const info = new window.google.maps.InfoWindow({
+        content: `
+          <div style="padding: 4px 6px; font-family: sans-serif; color: #111;">
+            <strong>🚏 ${stop.stop_name}</strong><br/>
+            <small>${stop.stop_desc || 'Остановка Кишинёва'}</small>
+          </div>
+        `,
+      });
+
+      marker.addListener('click', () => {
+        info.open(map, marker);
+        setSelectedStop(stop);
+      });
+
+      googleStopMarkersRef.current.push(marker);
+    });
+  }, [isGoogleMode, stopsList, showStops]);
+
+  // Render User Location on Google Map
+  useEffect(() => {
+    if (!isGoogleMode || !googleMapInstanceRef.current || !window.google?.maps) return;
+    const map = googleMapInstanceRef.current;
+
+    if (googleUserMarkerRef.current) {
+      googleUserMarkerRef.current.setMap(null);
+      googleUserMarkerRef.current = null;
+    }
+
+    if (userLocation) {
+      const svg = `
+        <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24">
+          <circle cx="12" cy="12" r="10" fill="#2563eb" fill-opacity="0.3" />
+          <circle cx="12" cy="12" r="5" fill="#2563eb" stroke="#ffffff" stroke-width="2" />
+        </svg>
+      `;
+
+      googleUserMarkerRef.current = new window.google.maps.Marker({
+        position: { lat: userLocation.lat, lng: userLocation.lon },
+        map,
+        icon: {
+          url: `data:image/svg+xml;charset=UTF-8,${encodeURIComponent(svg)}`,
+          scaledSize: new window.google.maps.Size(24, 24),
+          anchor: new window.google.maps.Point(12, 12),
+        },
+        title: 'Ты здесь',
+      });
+    }
+  }, [isGoogleMode, userLocation]);
+
+  // Render Trip Polyline & Endpoints on Google Map
+  useEffect(() => {
+    if (!isGoogleMode || !googleMapInstanceRef.current || !window.google?.maps) return;
+    const map = googleMapInstanceRef.current;
+
+    if (tripPolylineRef.current) {
+      tripPolylineRef.current.setMap(null);
+      tripPolylineRef.current = null;
+    }
+    if (endpointMarkersRef.current.markerA) {
+      endpointMarkersRef.current.markerA.setMap(null);
+      endpointMarkersRef.current.markerA = null;
+    }
+    if (endpointMarkersRef.current.markerB) {
+      endpointMarkersRef.current.markerB.setMap(null);
+      endpointMarkersRef.current.markerB = null;
+    }
+
+    if (pointA) {
+      const svgA = `
+        <svg xmlns="http://www.w3.org/2000/svg" width="28" height="28" viewBox="0 0 28 28">
+          <circle cx="14" cy="14" r="12" fill="#16a34a" stroke="#ffffff" stroke-width="2.5" />
+          <text x="14" y="18" fill="#ffffff" font-size="12" font-weight="bold" text-anchor="middle" font-family="sans-serif">A</text>
+        </svg>
+      `;
+      endpointMarkersRef.current.markerA = new window.google.maps.Marker({
+        position: { lat: pointA.lat, lng: pointA.lon },
+        map,
+        icon: {
+          url: `data:image/svg+xml;charset=UTF-8,${encodeURIComponent(svgA)}`,
+          scaledSize: new window.google.maps.Size(28, 28),
+          anchor: new window.google.maps.Point(14, 14),
+        },
+        title: 'Точка А',
+      });
+    }
+
+    if (pointB) {
+      const svgB = `
+        <svg xmlns="http://www.w3.org/2000/svg" width="28" height="28" viewBox="0 0 28 28">
+          <circle cx="14" cy="14" r="12" fill="#dc2626" stroke="#ffffff" stroke-width="2.5" />
+          <text x="14" y="18" fill="#ffffff" font-size="12" font-weight="bold" text-anchor="middle" font-family="sans-serif">B</text>
+        </svg>
+      `;
+      endpointMarkersRef.current.markerB = new window.google.maps.Marker({
+        position: { lat: pointB.lat, lng: pointB.lon },
+        map,
+        icon: {
+          url: `data:image/svg+xml;charset=UTF-8,${encodeURIComponent(svgB)}`,
+          scaledSize: new window.google.maps.Size(28, 28),
+          anchor: new window.google.maps.Point(14, 14),
+        },
+        title: 'Точка B',
+      });
+    }
+
+    const activeRoute = tripPlan?.routes?.[selectedRouteIndex];
+    if (activeRoute?.encodedPolyline && window.google.maps.geometry?.encoding) {
+      try {
+        const decodedPath = window.google.maps.geometry.encoding.decodePath(
+          activeRoute.encodedPolyline
+        );
+        const transitStep = activeRoute.steps.find(
+          (s): s is TripTransitStep => s.travelMode === 'TRANSIT'
+        );
+        const strokeColor = transitStep
+          ? ROUTE_COLORS[transitStep.lineShortName] || '#7c3aed'
+          : '#2563eb';
+
+        const poly = new window.google.maps.Polyline({
+          path: decodedPath,
+          geodesic: true,
+          strokeColor,
+          strokeOpacity: 0.9,
+          strokeWeight: 6,
+          map,
+        });
+        tripPolylineRef.current = poly;
+
+        const bounds = new window.google.maps.LatLngBounds();
+        decodedPath.forEach((pt: any) => bounds.extend(pt));
+        map.fitBounds(bounds, { top: 70, bottom: 260, left: 40, right: 40 });
+      } catch {
+        // Handled silently
+      }
+    }
+  }, [isGoogleMode, pointA, pointB, tripPlan, selectedRouteIndex]);
+
+  // -------------------------------------------------------------
+  // LEAFLET MAP IMPLEMENTATION (FALLBACK)
+  // -------------------------------------------------------------
+  useEffect(() => {
+    if (isGoogleMode || !containerRef.current) return;
 
     if (mapInstanceRef.current) {
       mapInstanceRef.current.remove();
@@ -173,7 +646,6 @@ export const TransitView: React.FC<TransitViewProps> = ({
     });
     mapInstanceRef.current = map;
 
-    // Tile Layers
     const streetTileUrl = isDark
       ? 'https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png'
       : 'https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png';
@@ -184,14 +656,12 @@ export const TransitView: React.FC<TransitViewProps> = ({
     });
     streetLayerRef.current = streetLayer;
 
-    // High Resolution Esri World Imagery (Satellite)
     const satLayer = L.tileLayer(
       'https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}',
       { maxZoom: 19 }
     );
     satLayerRef.current = satLayer;
 
-    // Hybrid Street Names & Boundaries for Satellite
     const satLabelsLayer = L.tileLayer(
       'https://services.arcgisonline.com/ArcGIS/rest/services/Reference/World_Boundaries_and_Places/MapServer/tile/{z}/{y}/{x}',
       { maxZoom: 19 }
@@ -205,10 +675,13 @@ export const TransitView: React.FC<TransitViewProps> = ({
       streetLayer.addTo(map);
     }
 
-    // Layers groups for markers and route track
     routeLayerRef.current = L.layerGroup().addTo(map);
     stopsLayerRef.current = L.layerGroup().addTo(map);
     vehiclesLayerRef.current = L.layerGroup().addTo(map);
+
+    map.on('click', (e) => {
+      handleMapClickPoint(e.latlng.lat, e.latlng.lng);
+    });
 
     setTimeout(() => map.invalidateSize(), 150);
 
@@ -216,26 +689,21 @@ export const TransitView: React.FC<TransitViewProps> = ({
       map.remove();
       mapInstanceRef.current = null;
     };
-  }, [isDark]);
+  }, [isGoogleMode, isDark]);
 
-  // Render Selected Route Track Polyline (like magenta line in screenshot)
+  // Leaflet Route Track Polyline
   useEffect(() => {
+    if (isGoogleMode) return;
     const map = mapInstanceRef.current;
     const routeLayer = routeLayerRef.current;
     if (!map || !routeLayer) return;
 
     routeLayer.clearLayers();
-
-    if (selectedRouteFilter === 'all') {
-      return;
-    }
+    if (selectedRouteFilter === 'all') return;
 
     const track = getRouteTrack(selectedRouteFilter, activeVehicles);
-    if (!track || !track.waypoints || track.waypoints.length === 0) {
-      return;
-    }
+    if (!track || !track.waypoints || track.waypoints.length === 0) return;
 
-    // Outer neon glow
     const outerGlow = L.polyline(track.waypoints, {
       color: track.color,
       weight: 10,
@@ -244,7 +712,6 @@ export const TransitView: React.FC<TransitViewProps> = ({
       lineJoin: 'round',
     });
 
-    // Core vivid line
     const coreLine = L.polyline(track.waypoints, {
       color: track.color,
       weight: 5,
@@ -261,7 +728,9 @@ export const TransitView: React.FC<TransitViewProps> = ({
       `<div class="map-trolley-popup">
         <div class="popup-head" style="background: ${track.color}">
           <strong>${track.routeName}</strong>
-          <span>${routeVehiclesCount} ${routeVehiclesCount === 1 ? 'машина' : routeVehiclesCount < 5 ? 'машины' : 'машин'}</span>
+          <span>${routeVehiclesCount} ${
+        routeVehiclesCount === 1 ? 'машина' : routeVehiclesCount < 5 ? 'машины' : 'машин'
+      }</span>
         </div>
         <div class="popup-body">
           <small>${track.description}</small>
@@ -273,7 +742,6 @@ export const TransitView: React.FC<TransitViewProps> = ({
     outerGlow.addTo(routeLayer);
     coreLine.addTo(routeLayer);
 
-    // Zoom and pan smoothly to the whole route extent
     try {
       const bounds = coreLine.getBounds();
       if (bounds.isValid()) {
@@ -282,10 +750,11 @@ export const TransitView: React.FC<TransitViewProps> = ({
     } catch {
       // Handled silently
     }
-  }, [selectedRouteFilter, activeVehicles]);
+  }, [isGoogleMode, selectedRouteFilter, activeVehicles]);
 
-  // Handle Map Mode Toggle (Street / Satellite)
+  // Leaflet Mode Switch (Street / Satellite)
   useEffect(() => {
+    if (isGoogleMode) return;
     const map = mapInstanceRef.current;
     const street = streetLayerRef.current;
     const sat = satLayerRef.current;
@@ -301,10 +770,11 @@ export const TransitView: React.FC<TransitViewProps> = ({
       map.removeLayer(satLabels);
       map.addLayer(street);
     }
-  }, [mapMode]);
+  }, [isGoogleMode, mapMode]);
 
-  // Render User Marker
+  // Leaflet User Marker
   useEffect(() => {
+    if (isGoogleMode) return;
     const map = mapInstanceRef.current;
     if (!map) return;
 
@@ -338,10 +808,11 @@ export const TransitView: React.FC<TransitViewProps> = ({
 
       userMarkerRef.current = uMarker;
     }
-  }, [userLocation]);
+  }, [isGoogleMode, userLocation]);
 
-  // Render All Stops
+  // Leaflet Stops
   useEffect(() => {
+    if (isGoogleMode) return;
     const layer = stopsLayerRef.current;
     if (!layer) return;
 
@@ -423,10 +894,11 @@ export const TransitView: React.FC<TransitViewProps> = ({
       marker.bindPopup(popupHtml, { offset: [0, -6] });
       marker.on('click', () => setSelectedStop(stop));
     });
-  }, [stopsList, showStops, userLocation, boardingStopName]);
+  }, [isGoogleMode, stopsList, showStops, userLocation, boardingStopName]);
 
-  // Render Trolleybuses
+  // Leaflet Trolleybuses
   useEffect(() => {
+    if (isGoogleMode) return;
     const layer = vehiclesLayerRef.current;
     if (!layer) return;
 
@@ -478,7 +950,9 @@ export const TransitView: React.FC<TransitViewProps> = ({
           <div class="popup-body">
             <div class="popup-row active-route-row-badge">
               <span>На этом маршруте:</span>
-              <b>${routeVehiclesCount} ${routeVehiclesCount === 1 ? 'машина' : routeVehiclesCount < 5 ? 'машины' : 'машин'}</b>
+              <b>${routeVehiclesCount} ${
+        routeVehiclesCount === 1 ? 'машина' : routeVehiclesCount < 5 ? 'машины' : 'машин'
+      }</b>
             </div>
             ${
               distToUserMeters != null
@@ -494,7 +968,11 @@ export const TransitView: React.FC<TransitViewProps> = ({
             </div>
             <div class="popup-row">
               <span>GPS обновление:</span>
-              <small>${new Date(veh.timestamp).toLocaleTimeString('ru-RU', { hour: '2-digit', minute: '2-digit', second: '2-digit' })}</small>
+              <small>${new Date(veh.timestamp).toLocaleTimeString('ru-RU', {
+                hour: '2-digit',
+                minute: '2-digit',
+                second: '2-digit',
+              })}</small>
             </div>
           </div>
         </div>
@@ -508,35 +986,35 @@ export const TransitView: React.FC<TransitViewProps> = ({
         setSelectedRouteFilter(veh.route_short_name);
       });
     });
-  }, [activeVehicles, selectedRouteFilter, userLocation]);
+  }, [isGoogleMode, activeVehicles, selectedRouteFilter, userLocation]);
 
   // Center on User GPS
   const handleLocateUser = useCallback(() => {
-    const map = mapInstanceRef.current;
-    if (!map) return;
-    if (userLocation) {
-      map.flyTo([userLocation.lat, userLocation.lon], 15, { duration: 0.8 });
-    } else {
-      map.flyTo([DEFAULT_CENTER.lat, DEFAULT_CENTER.lon], 14, { duration: 0.8 });
+    const target = userLocation || DEFAULT_CENTER;
+    if (isGoogleMode && googleMapInstanceRef.current) {
+      googleMapInstanceRef.current.panTo({ lat: target.lat, lng: target.lon });
+      googleMapInstanceRef.current.setZoom(15);
+    } else if (mapInstanceRef.current) {
+      mapInstanceRef.current.flyTo([target.lat, target.lon], 15, { duration: 0.8 });
     }
-  }, [userLocation]);
+  }, [isGoogleMode, userLocation]);
 
   // Center on Selected Stop
   const handleSelectSearchedStop = (stop: TransitStop) => {
     setSearchQuery('');
-    const map = mapInstanceRef.current;
-    if (!map) return;
-    map.flyTo([stop.stop_lat, stop.stop_lon], 16, { duration: 0.8 });
     setSelectedStop(stop);
+    if (isGoogleMode && googleMapInstanceRef.current) {
+      googleMapInstanceRef.current.panTo({ lat: stop.stop_lat, lng: stop.stop_lon });
+      googleMapInstanceRef.current.setZoom(16);
+    } else if (mapInstanceRef.current) {
+      mapInstanceRef.current.flyTo([stop.stop_lat, stop.stop_lon], 16, { duration: 0.8 });
+    }
   };
 
-  // Filtered stops for search suggestions
   const searchResults = useMemo(() => {
     const q = searchQuery.trim().toLowerCase();
     if (!q || q.length < 2) return [];
-    return stopsList
-      .filter((s) => s.stop_name.toLowerCase().includes(q))
-      .slice(0, 6);
+    return stopsList.filter((s) => s.stop_name.toLowerCase().includes(q)).slice(0, 6);
   }, [searchQuery, stopsList]);
 
   const handleRefreshClick = async () => {
@@ -547,10 +1025,12 @@ export const TransitView: React.FC<TransitViewProps> = ({
     }
   };
 
-  const selectedTrack = selectedRouteFilter !== 'all' ? getRouteTrack(selectedRouteFilter, activeVehicles) : null;
-  const vehiclesOnSelectedRoute = selectedRouteFilter !== 'all'
-    ? activeVehicles.filter((v) => v.route_short_name === selectedRouteFilter)
-    : activeVehicles;
+  const selectedTrack =
+    selectedRouteFilter !== 'all' ? getRouteTrack(selectedRouteFilter, activeVehicles) : null;
+  const vehiclesOnSelectedRoute =
+    selectedRouteFilter !== 'all'
+      ? activeVehicles.filter((v) => v.route_short_name === selectedRouteFilter)
+      : activeVehicles;
 
   return (
     <div className="transit-view-page">
@@ -597,7 +1077,11 @@ export const TransitView: React.FC<TransitViewProps> = ({
 
       {/* Map Main Canvas */}
       <div className="transit-map-fullscreen-container">
-        <div ref={containerRef} className="transit-map-fullcanvas" />
+        {isGoogleMode ? (
+          <div ref={googleContainerRef} className="google-map-fullcanvas" />
+        ) : (
+          <div ref={containerRef} className="transit-map-fullcanvas" />
+        )}
 
         {/* Map Top HUD Controls */}
         <div className="transit-map-controls-hud">
@@ -623,7 +1107,31 @@ export const TransitView: React.FC<TransitViewProps> = ({
             </button>
           </div>
 
-          {/* Route Dropdown Selector (Matching user screenshot) */}
+          {/* Traffic Toggle (available in Google Maps mode) */}
+          {isGoogleMode && (
+            <button
+              type="button"
+              className={`map-hud-toggle-btn traffic ${showTraffic ? 'active' : ''}`}
+              onClick={() => setShowTraffic(!showTraffic)}
+              title="Слой пробок Google"
+            >
+              <span>🚦 Пробки</span>
+            </button>
+          )}
+
+          {/* Planner Toggle (available in Google Maps mode) */}
+          {isGoogleMode && (
+            <button
+              type="button"
+              className={`map-hud-toggle-btn planner ${showPlanner ? 'active' : ''}`}
+              onClick={() => setShowPlanner(!showPlanner)}
+              title="Планировщик маршрута A->B"
+            >
+              <span>🧭 Маршрут</span>
+            </button>
+          )}
+
+          {/* Route Dropdown Selector */}
           <div className="map-route-dropdown-wrap">
             <select
               value={selectedRouteFilter}
@@ -654,7 +1162,7 @@ export const TransitView: React.FC<TransitViewProps> = ({
             {stopsList.length > 0 ? (
               <small>{stopsList.length}</small>
             ) : (
-              <small style={{ opacity: 0.6 }}>не загружены</small>
+              <small style={{ opacity: 0.6 }}>…</small>
             )}
           </button>
 
@@ -736,7 +1244,13 @@ export const TransitView: React.FC<TransitViewProps> = ({
                   {selectedTrack?.routeName || `Маршрут №${selectedRouteFilter}`}
                 </strong>
                 <span className="active-route-count-pill">
-                  {vehiclesOnSelectedRoute.length} {vehiclesOnSelectedRoute.length === 1 ? 'машина' : vehiclesOnSelectedRoute.length < 5 ? 'машины' : 'машин'} на рейсе
+                  {vehiclesOnSelectedRoute.length}{' '}
+                  {vehiclesOnSelectedRoute.length === 1
+                    ? 'машина'
+                    : vehiclesOnSelectedRoute.length < 5
+                    ? 'машины'
+                    : 'машин'}{' '}
+                  на рейсе
                 </span>
               </div>
               <small className="active-route-desc">
@@ -775,6 +1289,263 @@ export const TransitView: React.FC<TransitViewProps> = ({
             )}
           </div>
         </div>
+
+        {/* Interactive Trip Planner Drawer (Google Maps Mode) */}
+        {isGoogleMode && showPlanner && (
+          <div className="trip-planner-panel">
+            <div className="trip-planner-header">
+              <div className="trip-planner-title">
+                <Compass size={15} color="#7c3aed" />
+                <span>Планировщик поездки A → B</span>
+              </div>
+              <button
+                type="button"
+                className="active-route-close-btn"
+                onClick={() => setShowPlanner(false)}
+                title="Свернуть"
+              >
+                <X size={14} />
+              </button>
+            </div>
+
+            <div className="trip-planner-content">
+              {/* Point Selection Box */}
+              <div className="trip-points-box">
+                {/* Point A */}
+                <div
+                  className={`trip-point-row ${pickingPoint === 'A' ? 'active' : ''}`}
+                  onClick={() => setPickingPoint(pickingPoint === 'A' ? null : 'A')}
+                >
+                  <div className="trip-point-info">
+                    <div className="trip-point-label a">
+                      <MapPin size={12} />
+                      <span>Точка А (Откуда)</span>
+                    </div>
+                    <div
+                      className={`trip-point-stop ${
+                        nearestStopA ? 'has-stop' : pointA ? 'no-stop' : ''
+                      }`}
+                    >
+                      {pointA
+                        ? nearestStopA
+                          ? `🚏 ${nearestStopA.stop.stop_name} (${Math.round(
+                              nearestStopA.distanceMeters
+                            )} м)`
+                          : 'Рядом нет остановок (в радиусе 400 м)'
+                        : 'Нажмите, чтобы выбрать на карте'}
+                    </div>
+                  </div>
+                  <div className="trip-point-actions" onClick={(e) => e.stopPropagation()}>
+                    {userLocation && (
+                      <button
+                        type="button"
+                        className="trip-point-action-btn"
+                        onClick={() =>
+                          setPointA({
+                            lat: userLocation.lat,
+                            lon: userLocation.lon,
+                            name: 'Моё местоположение',
+                          })
+                        }
+                      >
+                        📍 Где я
+                      </button>
+                    )}
+                    <button
+                      type="button"
+                      className="trip-point-action-btn"
+                      onClick={() => setPickingPoint(pickingPoint === 'A' ? null : 'A')}
+                    >
+                      {pickingPoint === 'A' ? 'Клик на карту…' : 'Выбрать'}
+                    </button>
+                  </div>
+                </div>
+
+                {/* Point B */}
+                <div
+                  className={`trip-point-row ${pickingPoint === 'B' ? 'active' : ''}`}
+                  onClick={() => setPickingPoint(pickingPoint === 'B' ? null : 'B')}
+                >
+                  <div className="trip-point-info">
+                    <div className="trip-point-label b">
+                      <Navigation size={12} />
+                      <span>Точка B (Куда)</span>
+                    </div>
+                    <div
+                      className={`trip-point-stop ${
+                        nearestStopB ? 'has-stop' : pointB ? 'no-stop' : ''
+                      }`}
+                    >
+                      {pointB
+                        ? nearestStopB
+                          ? `🚏 ${nearestStopB.stop.stop_name} (${Math.round(
+                              nearestStopB.distanceMeters
+                            )} м)`
+                          : 'Рядом нет остановок (в радиусе 400 м)'
+                        : 'Нажмите, чтобы выбрать на карте'}
+                    </div>
+                  </div>
+                  <div className="trip-point-actions" onClick={(e) => e.stopPropagation()}>
+                    <button
+                      type="button"
+                      className="trip-point-action-btn"
+                      onClick={() =>
+                        setPointB({
+                          lat: 47.0186,
+                          lon: 28.8242,
+                          name: 'USM (Центральный корпус)',
+                        })
+                      }
+                    >
+                      🎓 USM
+                    </button>
+                    <button
+                      type="button"
+                      className="trip-point-action-btn"
+                      onClick={() =>
+                        setPointB({
+                          lat: 47.0125,
+                          lon: 28.8471,
+                          name: 'Спорткомплекс USM',
+                        })
+                      }
+                    >
+                      🏅 Спорт
+                    </button>
+                    <button
+                      type="button"
+                      className="trip-point-action-btn"
+                      onClick={() => setPickingPoint(pickingPoint === 'B' ? null : 'B')}
+                    >
+                      {pickingPoint === 'B' ? 'Клик на карту…' : 'Выбрать'}
+                    </button>
+                  </div>
+                </div>
+              </div>
+
+              {/* Status / Hint / Error Banners */}
+              {pickingPoint && (
+                <div className="trip-notice-banner">
+                  <Compass size={13} />
+                  <span>
+                    Нажмите на любое место на карте, чтобы установить точку {pickingPoint}
+                  </span>
+                </div>
+              )}
+
+              {planError && (
+                <div
+                  className="trip-notice-banner"
+                  style={{ color: '#dc2626', background: '#fef2f2', borderColor: '#fecaca' }}
+                >
+                  <CircleAlert size={13} />
+                  <span>{planError}</span>
+                </div>
+              )}
+
+              {isLoadingPlan && (
+                <div className="trip-loading-indicator">
+                  <RefreshCw size={15} className="spin" />
+                  <span>Расчёт маршрута с учётом пробок и троллейбусов…</span>
+                </div>
+              )}
+
+              {/* Calculated Routes List */}
+              {tripPlan && tripPlan.routes && tripPlan.routes.length > 0 && (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                  {tripPlan.notice && (
+                    <div className="trip-notice-banner">
+                      <CircleAlert size={13} />
+                      <span>{tripPlan.notice}</span>
+                    </div>
+                  )}
+
+                  {tripPlan.routes.map((opt: TripRouteOption, idx: number) => {
+                    const isSelected = selectedRouteIndex === idx;
+                    const trafficBadge = getTrafficBadge(opt.traffic.level, opt.traffic.label);
+                    const transitStep = opt.steps.find(
+                      (s): s is TripTransitStep => s.travelMode === 'TRANSIT'
+                    );
+
+                    return (
+                      <div
+                        key={opt.id || idx}
+                        className={`trip-route-card ${isSelected ? 'selected' : ''}`}
+                        onClick={() => setSelectedRouteIndex(idx)}
+                      >
+                        <div className="trip-route-card-head">
+                          <div style={{ display: 'flex', alignItems: 'center', gap: '7px' }}>
+                            {transitStep ? (
+                              <Bus size={16} color="#7c3aed" />
+                            ) : (
+                              <Car size={16} color="#2563eb" />
+                            )}
+                            <span className="trip-route-duration">
+                              {opt.totalDurationFormatted ||
+                                `${Math.round(opt.totalDurationSeconds / 60)} мин`}
+                            </span>
+                            {transitStep?.nextVehicleEtaMinutes != null && (
+                              <span className="trip-next-vehicle-pill">
+                                🚎 №{transitStep.lineShortName} через{' '}
+                                {transitStep.nextVehicleEtaMinutes} мин
+                              </span>
+                            )}
+                          </div>
+                          <span className={trafficBadge.className}>{trafficBadge.text}</span>
+                        </div>
+
+                        {/* Steps summary row */}
+                        <div className="trip-steps-summary">
+                          {opt.steps.map((st: TripStep, sIdx: number) => {
+                            if (st.travelMode === 'WALK') {
+                              const walkMin = Math.max(1, Math.round(st.durationSeconds / 60));
+                              return (
+                                <span
+                                  key={sIdx}
+                                  style={{
+                                    display: 'inline-flex',
+                                    alignItems: 'center',
+                                    gap: '3px',
+                                    color: '#6b7280',
+                                  }}
+                                >
+                                  <Footprints size={12} />
+                                  <span>{walkMin}м</span>
+                                  {sIdx < opt.steps.length - 1 && (
+                                    <ArrowRight size={10} style={{ opacity: 0.5 }} />
+                                  )}
+                                </span>
+                              );
+                            }
+                            if (st.travelMode === 'TRANSIT') {
+                              return (
+                                <span
+                                  key={sIdx}
+                                  style={{ display: 'inline-flex', alignItems: 'center', gap: '3px' }}
+                                >
+                                  <span className="trip-step-line-chip">
+                                    🚎 №{st.lineShortName}
+                                  </span>
+                                  <span style={{ fontSize: '10px', color: '#6b7280' }}>
+                                    ({st.departureStopName} → {st.arrivalStopName})
+                                  </span>
+                                  {sIdx < opt.steps.length - 1 && (
+                                    <ArrowRight size={10} style={{ opacity: 0.5 }} />
+                                  )}
+                                </span>
+                              );
+                            }
+                            return null;
+                          })}
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
+          </div>
+        )}
       </div>
     </div>
   );
@@ -782,7 +1553,16 @@ export const TransitView: React.FC<TransitViewProps> = ({
 
 function GlobeIcon() {
   return (
-    <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+    <svg
+      width="13"
+      height="13"
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="2"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+    >
       <circle cx="12" cy="12" r="10" />
       <line x1="2" y1="12" x2="22" y2="12" />
       <path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z" />

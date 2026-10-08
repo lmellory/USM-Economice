@@ -72,6 +72,7 @@ export function App() {
     note: 'Загрузка…',
   });
   const [commuteOptions, setCommuteOptions] = useState<CommuteOption[]>([]);
+  const [mapsBrowserKey, setMapsBrowserKey] = useState<string>('');
   const [commuteModal, setCommuteModal] = useState(false);
   const [modal, setModal] = useState(false);
   const [editing, setEditing] = useState<any>(null);
@@ -106,6 +107,7 @@ export function App() {
         setSchedule(data.classes || data.schedule || baseSchedule);
         setExceptions(data.exceptions || []);
         setCommuteOptions(data.commuteOptions || []);
+        setMapsBrowserKey(data.mapsBrowserKey || '');
         setHw(
           data.homework.map((x: any) => ({
             ...x,
@@ -407,6 +409,7 @@ export function App() {
           options={commuteOptions}
           settings={settings}
           request={request}
+          mapsBrowserKey={mapsBrowserKey}
           onOpenCommuteSettings={() => setCommuteModal(true)}
         />
       ) : (
