@@ -28,6 +28,7 @@ import {
   TripWalkStep,
   TrafficLevel,
 } from '@usm/shared';
+import { getTrolleyRoute } from '../lib/routes-geometry.js';
 
 declare global {
   interface Window {
@@ -674,20 +675,61 @@ export const TransitView: React.FC<TransitViewProps> = ({
     }
   }, [isGoogleMode, pointA, pointB, tripPlan, selectedRouteIndex]);
 
-  // Fit bounds to selected trolleybuses when filter changes (without drawing random lines)
+  // Real OSM Route Polylines for selected trolleybus
+  const googleRoutePolylinesRef = useRef<any[]>([]);
+
   useEffect(() => {
     if (!googleMapInstanceRef.current || !window.google?.maps) return;
     const map = googleMapInstanceRef.current;
 
-    if (selectedRouteFilter === 'all') return;
-    const routeVehicles = activeVehicles.filter(
-      (v) => v.route_short_name === selectedRouteFilter && v.latitude && v.longitude
-    );
-    if (routeVehicles.length === 0) return;
+    // Clear previous polylines
+    if (googleRoutePolylinesRef.current.length > 0) {
+      googleRoutePolylinesRef.current.forEach((p) => p.setMap(null));
+      googleRoutePolylinesRef.current = [];
+    }
 
+    if (selectedRouteFilter === 'all') return;
+
+    const routeData = getTrolleyRoute(selectedRouteFilter);
     const bounds = new window.google.maps.LatLngBounds();
-    routeVehicles.forEach((v) => bounds.extend({ lat: v.latitude, lng: v.longitude }));
-    map.fitBounds(bounds, { top: 80, bottom: 120, left: 40, right: 40 });
+
+    if (routeData && routeData.tracks && routeData.tracks.length > 0) {
+      const polylines = routeData.tracks.map((track) => {
+        const path = track.map(([lat, lng]) => {
+          bounds.extend({ lat, lng });
+          return { lat, lng };
+        });
+        return new window.google.maps.Polyline({
+          path,
+          geodesic: true,
+          strokeColor: routeData.color || '#3b82f6',
+          strokeOpacity: 0.85,
+          strokeWeight: 4,
+          map,
+        });
+      });
+      googleRoutePolylinesRef.current = polylines;
+
+      if (!bounds.isEmpty()) {
+        map.fitBounds(bounds, { top: 80, bottom: 120, left: 40, right: 40 });
+      }
+    } else {
+      // Fallback: fit bounds to active vehicles on that route
+      const routeVehicles = activeVehicles.filter(
+        (v) => v.route_short_name === selectedRouteFilter && v.latitude && v.longitude
+      );
+      if (routeVehicles.length > 0) {
+        routeVehicles.forEach((v) => bounds.extend({ lat: v.latitude, lng: v.longitude }));
+        map.fitBounds(bounds, { top: 80, bottom: 120, left: 40, right: 40 });
+      }
+    }
+
+    return () => {
+      if (googleRoutePolylinesRef.current.length > 0) {
+        googleRoutePolylinesRef.current.forEach((p) => p.setMap(null));
+        googleRoutePolylinesRef.current = [];
+      }
+    };
   }, [selectedRouteFilter]);
 
 
