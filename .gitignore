@@ -12,3 +12,7 @@ demovideo/
 *.log
 .wrangler/
 **/.wrangler/
+.dev.vars
+*.dev.vars
+**/.dev.vars
+dump-data.sql
