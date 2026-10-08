@@ -40,24 +40,29 @@ export async function checkTripPlanRateLimit(
     // Non-fatal cleanup
   }
 
-  const row = await db
-    .prepare('SELECT request_count FROM trip_plan_rate_limit WHERE user_id = ? AND window_hour = ?')
-    .bind(userId, windowHour)
-    .first<{ request_count: number }>();
+  try {
+    const row = await db
+      .prepare('SELECT request_count FROM trip_plan_rate_limit WHERE user_id = ? AND window_hour = ?')
+      .bind(userId, windowHour)
+      .first<{ request_count: number }>();
 
-  const currentCount = row?.request_count ?? 0;
-  if (currentCount >= limitPerHour) {
-    return { allowed: false, remaining: 0 };
+    const currentCount = row?.request_count ?? 0;
+    if (currentCount >= limitPerHour) {
+      return { allowed: false, remaining: 0 };
+    }
+
+    await db
+      .prepare(
+        'INSERT INTO trip_plan_rate_limit(user_id, window_hour, request_count) VALUES(?, ?, 1) ON CONFLICT(user_id, window_hour) DO UPDATE SET request_count = request_count + 1'
+      )
+      .bind(userId, windowHour)
+      .run();
+
+    return { allowed: true, remaining: limitPerHour - (currentCount + 1) };
+  } catch {
+    // Если таблица ещё не создана в D1 через миграцию, мягко разрешаем запрос
+    return { allowed: true, remaining: limitPerHour };
   }
-
-  await db
-    .prepare(
-      'INSERT INTO trip_plan_rate_limit(user_id, window_hour, request_count) VALUES(?, ?, 1) ON CONFLICT(user_id, window_hour) DO UPDATE SET request_count = request_count + 1'
-    )
-    .bind(userId, windowHour)
-    .run();
-
-  return { allowed: true, remaining: limitPerHour - (currentCount + 1) };
 }
 
 function formatSecondsToDuration(sec: number): string {
