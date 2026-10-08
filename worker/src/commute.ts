@@ -46,9 +46,6 @@ export async function ensureStopsPopulated(env: Env): Promise<void> {
     const res = await env.DB.prepare(
       "SELECT value, updated_at FROM app_state WHERE key = 'stops_synced_at'"
     ).all<{ value: string; updated_at: number }>();
-    if (res.meta?.rows_read !== undefined) {
-      console.log('[D1_AUDIT_ROWS_READ] ensureStopsPopulated stops_synced_at rows_read:', res.meta.rows_read);
-    }
     const syncRow = res.results?.[0];
     const nowSec = Math.floor(now / 1000);
     const syncedAt = syncRow ? Number(syncRow.value || syncRow.updated_at) : 0;
@@ -73,9 +70,6 @@ export async function searchStops(env: Env, query: string, limit: number = 500):
         const res = await env.DB.prepare(
           "SELECT value FROM app_state WHERE key = 'stops_json'"
         ).all<{ value: string }>();
-        if (res.meta?.rows_read !== undefined) {
-          console.log('[D1_AUDIT_ROWS_READ] searchStops stops_json rows_read:', res.meta.rows_read);
-        }
         const row = res.results?.[0];
         if (row?.value) {
           const parsed = JSON.parse(row.value);

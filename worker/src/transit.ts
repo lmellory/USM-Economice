@@ -183,9 +183,6 @@ export async function saveTransit(env: Env): Promise<void> {
     const res = await env.DB.prepare(
       "SELECT value, updated_at FROM app_state WHERE key = 'stops_synced_at'"
     ).all<{ value: string; updated_at: number }>();
-    if (res.meta?.rows_read !== undefined) {
-      console.log('[D1_AUDIT_ROWS_READ] saveTransit stops_synced_at rows_read:', res.meta.rows_read);
-    }
     const syncRow = res.results?.[0];
     const nowSec = Math.floor(Date.now() / 1000);
     const syncedAt = syncRow ? Number(syncRow.value || syncRow.updated_at) : 0;
