@@ -17,11 +17,15 @@ import { syncTranzyStops } from './transit.js';
 
 export { fetchLiveVehicles };
 
+let STOPS_CACHE: TransitStop[] | null = null;
+let STOPS_CACHE_TIME = 0;
+
 /**
  * Ensures stops table in D1 is populated from Tranzy OpenData.
  * If 0 stops exist, attempts to sync real stops from Tranzy OpenData.
  */
 export async function ensureStopsPopulated(env: Env): Promise<void> {
+  if (STOPS_CACHE && STOPS_CACHE.length > 0) return;
   try {
     const countRow = await env.DB.prepare('SELECT COUNT(*) as c FROM tranzy_stops').first<{
       c: number;
@@ -30,42 +34,44 @@ export async function ensureStopsPopulated(env: Env): Promise<void> {
       await syncTranzyStops(env);
     }
   } catch {
-    // Non-fatal if stops sync fails
+    // Non-fatal if stops sync fails or quota exceeded
   }
 }
 
 /**
- * Searches stops by query string.
+ * Searches stops by query string with in-memory caching to protect D1 read quota.
  */
 export async function searchStops(env: Env, query: string, limit: number = 500): Promise<TransitStop[]> {
-  await ensureStopsPopulated(env);
-  const q = query.trim().toLowerCase();
-  if (!q) {
-    const all = await env.DB.prepare('SELECT * FROM tranzy_stops ORDER BY stop_name ASC LIMIT ?')
-      .bind(limit)
-      .all<any>();
-    return (all.results || []).map((r) => ({
-      stop_id: Number(r.stop_id),
-      stop_name: String(r.stop_name),
-      stop_desc: r.stop_desc || undefined,
-      stop_lat: Number(r.stop_lat),
-      stop_lon: Number(r.stop_lon),
-    }));
+  const now = Date.now();
+  if (!STOPS_CACHE || now - STOPS_CACHE_TIME > 3600000) {
+    try {
+      await ensureStopsPopulated(env);
+      const all = await env.DB.prepare('SELECT * FROM tranzy_stops ORDER BY stop_name ASC LIMIT 1500')
+        .all<any>();
+      if (all.results && all.results.length > 0) {
+        STOPS_CACHE = (all.results || []).map((r) => ({
+          stop_id: Number(r.stop_id),
+          stop_name: String(r.stop_name),
+          stop_desc: r.stop_desc || undefined,
+          stop_lat: Number(r.stop_lat),
+          stop_lon: Number(r.stop_lon),
+        }));
+        STOPS_CACHE_TIME = now;
+      }
+    } catch {
+      // Non-fatal if D1 quota is exceeded
+    }
   }
 
-  const rows = await env.DB.prepare(
-    'SELECT * FROM tranzy_stops WHERE LOWER(stop_name) LIKE ? ORDER BY stop_name ASC LIMIT ?'
-  )
-    .bind(`%${q}%`, limit)
-    .all<any>();
+  const allStops = STOPS_CACHE || [];
+  const q = query.trim().toLowerCase();
+  if (!q) {
+    return allStops.slice(0, limit);
+  }
 
-  return (rows.results || []).map((r) => ({
-    stop_id: Number(r.stop_id),
-    stop_name: String(r.stop_name),
-    stop_desc: r.stop_desc || undefined,
-    stop_lat: Number(r.stop_lat),
-    stop_lon: Number(r.stop_lon),
-  }));
+  return allStops
+    .filter((s) => s.stop_name.toLowerCase().includes(q))
+    .slice(0, limit);
 }
 
 /**

@@ -237,7 +237,7 @@ export const TransitView: React.FC<TransitViewProps> = ({
 
   useEffect(() => {
     fetchLiveVehicles();
-    const timer = setInterval(fetchLiveVehicles, 20000);
+    const timer = setInterval(fetchLiveVehicles, 60000);
     return () => clearInterval(timer);
   }, [fetchLiveVehicles]);
 

@@ -57,36 +57,55 @@ async function apiRequest(request: Request, env: Env, path: string): Promise<Res
     );
   }
 
-  await env.DB.batch([
-    env.DB.prepare(
-      'INSERT INTO users(id,first_name) VALUES(?,?) ON CONFLICT(id) DO UPDATE SET first_name=excluded.first_name'
-    ).bind(String(user.id), user.first_name || ''),
-    env.DB.prepare('INSERT INTO settings(user_id) VALUES(?) ON CONFLICT(user_id) DO NOTHING').bind(
-      String(user.id)
-    ),
-  ]);
+  try {
+    await env.DB.batch([
+      env.DB.prepare(
+        'INSERT INTO users(id,first_name) VALUES(?,?) ON CONFLICT(id) DO UPDATE SET first_name=excluded.first_name'
+      ).bind(String(user.id), user.first_name || ''),
+      env.DB.prepare('INSERT INTO settings(user_id) VALUES(?) ON CONFLICT(user_id) DO NOTHING').bind(
+        String(user.id)
+      ),
+    ]);
+  } catch (userDbErr) {
+    console.warn('Failed to ensure user/settings in DB (possible D1 quota limit):', userDbErr);
+  }
 
   if (path === '/api/bootstrap' && request.method === 'GET') {
-    await ensureClassesPopulated(env, String(user.id));
+    let settingsRow: any = null;
+    let homeworkResults: any[] = [];
+    let classesList: any[] = [];
+    let exceptionsList: any[] = [];
+    let transitRow: any = null;
+    let commuteOptions: any[] = [];
 
-    const [settingsRow, homework, classRows, excRows, transitRow] = await Promise.all([
-      env.DB.prepare('SELECT * FROM settings WHERE user_id=?').bind(String(user.id)).first(),
-      env.DB.prepare(
-        'SELECT * FROM homework WHERE user_id=? ORDER BY completed ASC, CASE WHEN due_at IS NULL THEN 1 ELSE 0 END, due_at ASC, created_at DESC'
-      )
-        .bind(String(user.id))
-        .all(),
-      env.DB.prepare('SELECT * FROM classes WHERE user_id=? ORDER BY day ASC, start ASC, position ASC')
-        .bind(String(user.id))
-        .all(),
-      env.DB.prepare('SELECT * FROM schedule_exceptions WHERE user_id=? ORDER BY date ASC')
-        .bind(String(user.id))
-        .all(),
-      env.DB.prepare('SELECT * FROM transit_state WHERE id=1').first<any>(),
-    ]);
+    try {
+      await ensureClassesPopulated(env, String(user.id));
 
-    const classesList = (classRows.results || []).map(mapClassRow);
-    const exceptionsList = (excRows.results || []).map(mapExceptionRow);
+      const [sRow, homework, classRows, excRows, tRow] = await Promise.all([
+        env.DB.prepare('SELECT * FROM settings WHERE user_id=?').bind(String(user.id)).first(),
+        env.DB.prepare(
+          'SELECT * FROM homework WHERE user_id=? ORDER BY completed ASC, CASE WHEN due_at IS NULL THEN 1 ELSE 0 END, due_at ASC, created_at DESC'
+        )
+          .bind(String(user.id))
+          .all(),
+        env.DB.prepare('SELECT * FROM classes WHERE user_id=? ORDER BY day ASC, start ASC, position ASC')
+          .bind(String(user.id))
+          .all(),
+        env.DB.prepare('SELECT * FROM schedule_exceptions WHERE user_id=? ORDER BY date ASC')
+          .bind(String(user.id))
+          .all(),
+        env.DB.prepare('SELECT * FROM transit_state WHERE id=1').first<any>(),
+      ]);
+
+      settingsRow = sRow;
+      homeworkResults = homework.results || [];
+      classesList = (classRows.results || []).map(mapClassRow);
+      exceptionsList = (excRows.results || []).map(mapExceptionRow);
+      transitRow = tRow;
+      commuteOptions = await getUserCommuteOptions(env, String(user.id));
+    } catch (d1Err) {
+      console.warn('D1 bootstrap query failed (possible quota limit):', d1Err);
+    }
 
     const t = transitRow
       ? {
@@ -110,12 +129,12 @@ async function apiRequest(request: Request, env: Env, path: string): Promise<Res
 
     return json({
       settings: dbSettings(settingsRow),
-      homework: homework.results,
-      schedule: classesList,
-      classes: classesList,
+      homework: homeworkResults,
+      schedule: classesList.length > 0 ? classesList : baseSchedule,
+      classes: classesList.length > 0 ? classesList : baseSchedule,
       exceptions: exceptionsList,
       transit: t,
-      commuteOptions: await getUserCommuteOptions(env, String(user.id)),
+      commuteOptions,
       mapsBrowserKey: env.GOOGLE_MAPS_BROWSER_KEY || '',
     });
   }
@@ -130,17 +149,21 @@ async function apiRequest(request: Request, env: Env, path: string): Promise<Res
   }
 
   if (path === '/api/transit' && request.method === 'GET') {
-    const t = await env.DB.prepare('SELECT * FROM transit_state WHERE id=1').first<any>();
-    if (!t) return json(await transit(env));
-    return json({
-      available: Boolean(t.available),
-      source: t.source,
-      checkedAt: t.checked_at,
-      note: t.note,
-      route: null,
-      estimateMinutes: t.estimate_minutes,
-      liveVehicleCount: t.vehicle_count ?? undefined,
-    });
+    try {
+      const t = await env.DB.prepare('SELECT * FROM transit_state WHERE id=1').first<any>();
+      if (!t) return json(await transit(env));
+      return json({
+        available: Boolean(t.available),
+        source: t.source,
+        checkedAt: t.checked_at,
+        note: t.note,
+        route: null,
+        estimateMinutes: t.estimate_minutes,
+        liveVehicleCount: t.vehicle_count ?? undefined,
+      });
+    } catch {
+      return json(await transit(env));
+    }
   }
 
   if (path === '/api/settings' && request.method === 'PUT') {
