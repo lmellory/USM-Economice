@@ -28,7 +28,6 @@ import {
   TripWalkStep,
   TrafficLevel,
 } from '@usm/shared';
-import { CHISINAU_ROUTES_TRACKS, getRouteTrack } from '../lib/routes-geometry.js';
 
 declare global {
   interface Window {
@@ -675,38 +674,21 @@ export const TransitView: React.FC<TransitViewProps> = ({
     }
   }, [isGoogleMode, pointA, pointB, tripPlan, selectedRouteIndex]);
 
-  // Google Route Track Polyline (trajectory of selected trolleybus)
-  const googleRouteTrackPolylineRef = useRef<any>(null);
+  // Fit bounds to selected trolleybuses when filter changes (without drawing random lines)
   useEffect(() => {
     if (!googleMapInstanceRef.current || !window.google?.maps) return;
     const map = googleMapInstanceRef.current;
 
-    if (googleRouteTrackPolylineRef.current) {
-      googleRouteTrackPolylineRef.current.setMap(null);
-      googleRouteTrackPolylineRef.current = null;
-    }
-
     if (selectedRouteFilter === 'all') return;
-    const track = getRouteTrack(selectedRouteFilter, activeVehicles);
-    if (!track || !track.waypoints || track.waypoints.length === 0) return;
-
-    const path = track.waypoints.map((pt) => ({ lat: pt[0], lng: pt[1] }));
-    const color = track.color || ROUTE_COLORS[selectedRouteFilter] || '#d946ef';
-
-    const poly = new window.google.maps.Polyline({
-      path,
-      geodesic: true,
-      strokeColor: color,
-      strokeOpacity: 0.85,
-      strokeWeight: 5,
-      map,
-    });
-    googleRouteTrackPolylineRef.current = poly;
+    const routeVehicles = activeVehicles.filter(
+      (v) => v.route_short_name === selectedRouteFilter && v.latitude && v.longitude
+    );
+    if (routeVehicles.length === 0) return;
 
     const bounds = new window.google.maps.LatLngBounds();
-    path.forEach((pt) => bounds.extend(pt));
-    map.fitBounds(bounds, { top: 70, bottom: 200, left: 40, right: 40 });
-  }, [selectedRouteFilter, activeVehicles]);
+    routeVehicles.forEach((v) => bounds.extend({ lat: v.latitude, lng: v.longitude }));
+    map.fitBounds(bounds, { top: 80, bottom: 120, left: 40, right: 40 });
+  }, [selectedRouteFilter]);
 
 
 
