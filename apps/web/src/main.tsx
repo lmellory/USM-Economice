@@ -41,6 +41,25 @@ function getNowMinutes(): number {
   return h * 60 + m;
 }
 
+export const DEFAULT_APP_SETTINGS = {
+  theme: (typeof localStorage !== 'undefined' && localStorage.getItem('usm_theme')) || 'light',
+  sleep_hours: 8,
+  sleep_latency: 15,
+  wash_minutes: 20,
+  hair_dry_minutes: 5,
+  breakfast_minutes: 30,
+  get_ready_minutes: 10,
+  travel_buffer: 10,
+  travel_minutes: 35,
+  target_bedtime: '00:15',
+  english_duration: 60,
+  semester_start: null,
+  first_week_parity: null,
+  reminders_enabled: false,
+  reminder_minutes: 60,
+  leave_reminder: false,
+};
+
 export function App() {
   const [view, setView] = useState<'home' | 'schedule' | 'hw' | 'map' | 'settings'>('home');
   const [selected, setSelected] = useState(new Date());
@@ -48,24 +67,7 @@ export function App() {
   const [hw, setHw] = useState<any[]>([]);
   const [schedule, setSchedule] = useState<ClassItem[]>(baseSchedule);
   const [exceptions, setExceptions] = useState<ScheduleException[]>([]);
-  const [settings, setSettings] = useState<any>({
-    theme: (typeof localStorage !== 'undefined' && localStorage.getItem('usm_theme')) || 'light',
-    sleep_hours: 8,
-    sleep_latency: 15,
-    wash_minutes: 20,
-    hair_dry_minutes: 5,
-    breakfast_minutes: 30,
-    get_ready_minutes: 10,
-    travel_buffer: 10,
-    travel_minutes: 35,
-    target_bedtime: '00:15',
-    english_duration: 60,
-    semester_start: null,
-    first_week_parity: null,
-    reminders_enabled: false,
-    reminder_minutes: 60,
-    leave_reminder: false,
-  });
+  const [settings, setSettings] = useState<any>(DEFAULT_APP_SETTINGS);
   const [transit, setTransit] = useState<any>({
     available: false,
     estimateMinutes: 35,
@@ -103,21 +105,27 @@ export function App() {
     const loadBootstrap = async () => {
       try {
         const data = await request('/api/bootstrap');
-        setSettings(data.settings);
-        setSchedule(data.classes || data.schedule || baseSchedule);
-        setExceptions(data.exceptions || []);
-        setCommuteOptions(data.commuteOptions || []);
-        setMapsBrowserKey(data.mapsBrowserKey || '');
-        setHw(
-          data.homework.map((x: any) => ({
-            ...x,
-            completed: x.completed,
-            dueAt: x.due_at,
-            dueDate: x.due_date,
-            telegramReminder: x.telegram_reminder,
-          }))
-        );
-        setTransit(data.transit);
+        if (data?.settings && typeof data.settings === 'object') {
+          setSettings((prev: any) => ({ ...prev, ...data.settings }));
+        }
+        setSchedule(data?.classes || data?.schedule || baseSchedule);
+        setExceptions(data?.exceptions || []);
+        setCommuteOptions(data?.commuteOptions || []);
+        setMapsBrowserKey(data?.mapsBrowserKey || '');
+        if (Array.isArray(data?.homework)) {
+          setHw(
+            data.homework.map((x: any) => ({
+              ...x,
+              completed: x.completed,
+              dueAt: x.due_at,
+              dueDate: x.due_date,
+              telegramReminder: x.telegram_reminder,
+            }))
+          );
+        }
+        if (data?.transit) {
+          setTransit(data.transit);
+        }
       } catch (e: any) {
         if (tg?.initData) setError(e.message);
         else
@@ -141,8 +149,8 @@ export function App() {
   }, []);
 
   useEffect(() => {
-    applyTheme(settings.theme);
-  }, [settings.theme]);
+    applyTheme(settings?.theme || 'light');
+  }, [settings?.theme]);
 
   useEffect(() => {
     const back = tg?.BackButton;
@@ -172,7 +180,8 @@ export function App() {
 
   const scheduleFor = (d: Date) => {
     const p = dateParts(d);
-    const parity = calculateWeekParity(p.key, settings.semester_start, settings.first_week_parity);
+    const safe = settings || DEFAULT_APP_SETTINGS;
+    const parity = calculateWeekParity(p.key, safe.semester_start, safe.first_week_parity);
     return getDaySchedule(schedule, p.weekday, parity, exceptions, p.key);
   };
 
@@ -201,10 +210,10 @@ export function App() {
     ? `Неделя ${daySchedule.parity === 'odd' ? 'нечётная' : 'чётная'}`
     : 'Неделя не настроена';
 
-  const routine = useMemo(
-    () => calculateMorningRoutine(daySchedule.classes, settings, transit.estimateMinutes),
-    [daySchedule.classes, settings, transit.estimateMinutes]
-  );
+  const routine = useMemo(() => {
+    const safe = settings || DEFAULT_APP_SETTINGS;
+    return calculateMorningRoutine(daySchedule.classes, safe, transit?.estimateMinutes || 35);
+  }, [daySchedule.classes, settings, transit?.estimateMinutes]);
 
   const saveSettings = async (patch: any) => {
     setSettings((s: any) => ({ ...s, ...patch }));
@@ -559,4 +568,60 @@ export function App() {
   );
 }
 
-createRoot(document.getElementById('root')!).render(<App />);
+class ErrorBoundary extends React.Component<
+  { children: React.ReactNode },
+  { hasError: boolean; error: any }
+> {
+  constructor(props: any) {
+    super(props);
+    this.state = { hasError: false, error: null };
+  }
+  static getDerivedStateFromError(error: any) {
+    return { hasError: true, error };
+  }
+  componentDidCatch(error: any, info: any) {
+    console.error('App render error:', error, info);
+  }
+  render() {
+    if (this.state.hasError) {
+      return (
+        <div
+          style={{
+            padding: 24,
+            textAlign: 'center',
+            fontFamily: '-apple-system, sans-serif',
+            color: '#111',
+            paddingTop: '35vh',
+          }}
+        >
+          <h3 style={{ margin: '0 0 8px', fontSize: 18 }}>Что-то пошло не так</h3>
+          <p style={{ color: '#ef4444', fontSize: 13, margin: '0 0 16px' }}>
+            {this.state.error?.message || 'Неизвестная ошибка интерфейса'}
+          </p>
+          <button
+            type="button"
+            onClick={() => window.location.reload()}
+            style={{
+              padding: '10px 20px',
+              borderRadius: 10,
+              background: '#2563eb',
+              color: '#fff',
+              border: 'none',
+              fontWeight: 700,
+              cursor: 'pointer',
+            }}
+          >
+            Перезагрузить
+          </button>
+        </div>
+      );
+    }
+    return this.props.children;
+  }
+}
+
+createRoot(document.getElementById('root')!).render(
+  <ErrorBoundary>
+    <App />
+  </ErrorBoundary>
+);

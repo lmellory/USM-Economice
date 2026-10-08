@@ -42,9 +42,33 @@ export const settingsColumns: Record<string, string> = {
   leave_reminder: 'leave_reminder',
 };
 
+export const DEFAULT_SETTINGS = {
+  semester_start: null,
+  first_week_parity: null,
+  english_duration: 60,
+  sleep_hours: 8,
+  sleep_latency: 15,
+  wash_minutes: 20,
+  hair_dry_minutes: 5,
+  breakfast_minutes: 30,
+  get_ready_minutes: 10,
+  travel_buffer: 10,
+  travel_minutes: 35,
+  target_bedtime: '00:15',
+  home_address: 'strada Tudor Strișcă 8/7, Chișinău',
+  university_address: 'strada Alexei Mateevici 60, Chișinău',
+  theme: 'light',
+  reminders_enabled: false,
+  reminder_minutes: 60,
+  wake_reminder: false,
+  sleep_reminder: false,
+  leave_reminder: false,
+};
+
 export function dbSettings(s: any): any {
-  if (!s) return null;
+  if (!s) return { ...DEFAULT_SETTINGS };
   return {
+    ...DEFAULT_SETTINGS,
     ...s,
     wash_minutes: s.wash_minutes ?? 20,
     hair_dry_minutes: s.hair_dry_minutes ?? 5,
