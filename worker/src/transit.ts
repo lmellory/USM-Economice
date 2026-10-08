@@ -1,4 +1,10 @@
 import { Env, TransitState } from './types.js';
+import {
+  getTranzyHeaders,
+  getTranzyBaseUrl,
+  fetchTranzyRoutesRaw,
+  fetchTranzyStopsRaw,
+} from './tranzy.js';
 
 export async function transit(env: Env): Promise<TransitState> {
   const checkedAt = new Date().toISOString();
@@ -15,58 +21,9 @@ export async function transit(env: Env): Promise<TransitState> {
   }
 
   try {
-    let vehiclesUrl = (
-      env.TRANZY_VEHICLES_URL || 'https://api.tranzy.ai/v1/opendata/vehicles'
-    ).trim();
-    if (vehiclesUrl.endsWith('/v1/opendata/vehicle')) {
-      vehiclesUrl = vehiclesUrl.replace(/\/v1\/opendata\/vehicle$/, '/v1/opendata/vehicles');
-    }
-
-    let agencyId = env.TRANZY_AGENCY_ID?.trim();
-    let agencyName = '';
-
-    if (!agencyId) {
-      const baseUrl = vehiclesUrl.replace(/\/vehicles(?:\?.*)?$/, '');
-      const agencyEndpoint = `${baseUrl}/agency`;
-      const ar = await fetch(agencyEndpoint, {
-        headers: { 'X-API-KEY': env.TRANZY_API_KEY },
-        signal: AbortSignal.timeout(6000),
-      });
-
-      if (!ar.ok) {
-        let reason = `HTTP ${ar.status}`;
-        if (ar.status === 403) reason = 'HTTP 403 (доступ запрещён: неверный TRANZY_API_KEY)';
-        else if (ar.status === 429) reason = 'HTTP 429 (превышен лимит запросов к Tranzy)';
-
-        return {
-          available: false,
-          source: 'Tranzy OpenData',
-          checkedAt,
-          note: `Tranzy /agency ответил ${reason}. Используется оценка около 30 минут.`,
-          route: null,
-          estimateMinutes: 30,
-        };
-      }
-
-      const agencies: any = await ar.json();
-      const list = Array.isArray(agencies) ? agencies : [];
-      const matched =
-        list.find(
-          (a: any) =>
-            String(a.agency_timezone || '')
-              .toLowerCase()
-              .includes('chisinau') ||
-            /chisinau|chișinău|rtec|pua/i.test(String(a.agency_name || ''))
-        ) || list[0];
-
-      if (matched) {
-        agencyId = String(matched.agency_id);
-        agencyName = matched.agency_name ? ` (${matched.agency_name})` : '';
-      }
-    }
-
-    const headers: Record<string, string> = { 'X-API-KEY': env.TRANZY_API_KEY };
-    if (agencyId) headers['X-Agency-Id'] = agencyId;
+    const { headers, agencyName } = await getTranzyHeaders(env);
+    const baseUrl = getTranzyBaseUrl(env);
+    const vehiclesUrl = `${baseUrl}/vehicles`;
 
     const r = await fetch(vehiclesUrl, { headers, signal: AbortSignal.timeout(8000) });
     if (!r.ok) {
@@ -90,12 +47,8 @@ export async function transit(env: Env): Promise<TransitState> {
 
     let routesSummary = '';
     try {
-      const routesUrl = vehiclesUrl.replace(/\/vehicles(?:\?.*)?$/, '/routes');
-      const rr = await fetch(routesUrl, { headers, signal: AbortSignal.timeout(6000) });
-      if (rr.ok) {
-        const routesData: any = await rr.json();
-        const routesList: any[] = Array.isArray(routesData) ? routesData : (routesData.data ?? []);
-        if (routesList.length > 0) {
+      const routesList = await fetchTranzyRoutesRaw(env);
+      if (routesList.length > 0) {
           const nowSec = Math.floor(Date.now() / 1000);
           const stmts = routesList.slice(0, 100).map((item: any) =>
             env.DB.prepare(
@@ -131,7 +84,6 @@ export async function transit(env: Env): Promise<TransitState> {
             '№24': trolleyCountsByRoute['28'] || 0,
           },
         });
-      }
     } catch (e: any) {
       routesSummary = JSON.stringify({ err: String(e?.message) });
     }
@@ -163,46 +115,7 @@ export async function syncTranzyStops(env: Env): Promise<{ count: number; error?
     return { count: 0, error: 'No TRANZY_API_KEY' };
   }
   try {
-    const vehiclesUrl = (
-      env.TRANZY_VEHICLES_URL || 'https://api.tranzy.ai/v1/opendata/vehicles'
-    ).trim();
-    const baseUrl = vehiclesUrl.replace(/\/vehicles(?:\?.*)?$/, '');
-
-    let agencyId = env.TRANZY_AGENCY_ID?.trim();
-    if (!agencyId) {
-      const ar = await fetch(`${baseUrl}/agency`, {
-        headers: { 'X-API-KEY': env.TRANZY_API_KEY },
-        signal: AbortSignal.timeout(6000),
-      });
-      if (ar.ok) {
-        const agencies: any = await ar.json();
-        const list = Array.isArray(agencies) ? agencies : [];
-        const matched =
-          list.find(
-            (a: any) =>
-              String(a.agency_timezone || '')
-                .toLowerCase()
-                .includes('chisinau') ||
-              /chisinau|chișinău|rtec|pua/i.test(String(a.agency_name || ''))
-          ) || list[0];
-        if (matched) agencyId = String(matched.agency_id);
-      }
-    }
-
-    const headers: Record<string, string> = { 'X-API-KEY': env.TRANZY_API_KEY };
-    if (agencyId) headers['X-Agency-Id'] = agencyId;
-
-    const stopsRes = await fetch(`${baseUrl}/stops`, {
-      headers,
-      signal: AbortSignal.timeout(10000),
-    });
-
-    if (!stopsRes.ok) {
-      return { count: 0, error: `HTTP ${stopsRes.status}` };
-    }
-
-    const stopsData: any = await stopsRes.json();
-    const stopsList: any[] = Array.isArray(stopsData) ? stopsData : (stopsData.data ?? []);
+    const stopsList = await fetchTranzyStopsRaw(env);
     if (stopsList.length === 0) {
       return { count: 0 };
     }

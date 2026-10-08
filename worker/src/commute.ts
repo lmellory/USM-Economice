@@ -6,137 +6,14 @@ import {
   CommuteOptionResult,
   DestinationType,
   TransitStop,
-  VehiclePosition,
   TrackedTrolleySummary,
   LiveTrackedVehicle,
 } from '@usm/shared';
 import { json } from './homework.js';
 import { Env } from './types.js';
+import { fetchLiveVehicles } from './tranzy.js';
 
-const VEHICLES_CACHE_TTL = 30; // seconds
-
-/**
- * Fetches live vehicles from Tranzy OpenData, protected by a 30-second Cache API window.
- */
-export async function fetchLiveVehicles(env: Env): Promise<{
-  vehicles: VehiclePosition[];
-  available: boolean;
-  source: string;
-  note?: string;
-}> {
-  if (!env.TRANZY_API_KEY) {
-    return {
-      vehicles: [],
-      available: false,
-      source: 'Tranzy OpenData (не настроен)',
-      note: 'Секрет TRANZY_API_KEY не задан в Worker.',
-    };
-  }
-
-  const vehiclesUrl = (
-    env.TRANZY_VEHICLES_URL || 'https://api.tranzy.ai/v1/opendata/vehicles'
-  ).trim();
-
-  const cacheKey = new Request('https://cache.local/tranzy/vehicles');
-  const cache = (caches as any).default;
-
-  try {
-    const cachedResp = await cache.match(cacheKey);
-    if (cachedResp) {
-      const data: any = await cachedResp.json();
-      return {
-        vehicles: data.vehicles || [],
-        available: true,
-        source: data.source || 'Tranzy OpenData (RTEC/PUA)',
-      };
-    }
-  } catch {
-    // Cache miss or unsupported in local mock
-  }
-
-  try {
-    let agencyId = env.TRANZY_AGENCY_ID?.trim();
-    if (!agencyId) {
-      const baseUrl = vehiclesUrl.replace(/\/vehicles(?:\?.*)?$/, '');
-      const ar = await fetch(`${baseUrl}/agency`, {
-        headers: { 'X-API-KEY': env.TRANZY_API_KEY },
-        signal: AbortSignal.timeout(6000),
-      });
-      if (ar.ok) {
-        const agencies: any = await ar.json();
-        const list = Array.isArray(agencies) ? agencies : [];
-        const matched =
-          list.find(
-            (a: any) =>
-              String(a.agency_timezone || '')
-                .toLowerCase()
-                .includes('chisinau') ||
-              /chisinau|chișinău|rtec|pua/i.test(String(a.agency_name || ''))
-          ) || list[0];
-        if (matched) {
-          agencyId = String(matched.agency_id);
-        }
-      }
-    }
-
-    const headers: Record<string, string> = { 'X-API-KEY': env.TRANZY_API_KEY };
-    if (agencyId) headers['X-Agency-Id'] = agencyId;
-
-    const r = await fetch(vehiclesUrl, { headers, signal: AbortSignal.timeout(8000) });
-    if (!r.ok) {
-      return {
-        vehicles: [],
-        available: false,
-        source: 'Tranzy OpenData',
-        note: `Tranzy ответил HTTP ${r.status}. Используется резервная оценка.`,
-      };
-    }
-
-    const raw: any = await r.json();
-    const list: any[] = Array.isArray(raw) ? raw : (raw.data ?? raw.vehicles ?? []);
-
-    const vehicles: VehiclePosition[] = list.map((v) => ({
-      id: String(v.id || v.label || ''),
-      label: String(v.label || v.id || ''),
-      route_id: Number(v.route_id),
-      trip_id: v.trip_id ? String(v.trip_id) : undefined,
-      latitude: Number(v.latitude),
-      longitude: Number(v.longitude),
-      speed: Number(v.speed || 0),
-      timestamp: v.timestamp ? String(v.timestamp) : new Date().toISOString(),
-      vehicle_type: Number(v.vehicle_type || 11),
-    }));
-
-    // Cache the result for 30s
-    try {
-      const respToCache = new Response(
-        JSON.stringify({ vehicles, source: 'Tranzy OpenData (RTEC/PUA)' }),
-        {
-          headers: {
-            'content-type': 'application/json',
-            'cache-control': `public, max-age=${VEHICLES_CACHE_TTL}`,
-          },
-        }
-      );
-      await cache.put(cacheKey, respToCache);
-    } catch {
-      // cache storage warning ignored
-    }
-
-    return {
-      vehicles,
-      available: true,
-      source: 'Tranzy OpenData (RTEC/PUA)',
-    };
-  } catch (err: any) {
-    return {
-      vehicles: [],
-      available: false,
-      source: 'Tranzy OpenData',
-      note: 'Не удалось получить данные Tranzy OpenData.',
-    };
-  }
-}
+export { fetchLiveVehicles };
 
 /**
  * Ensures stops table in D1 is populated.
