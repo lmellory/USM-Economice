@@ -691,38 +691,103 @@ export const TransitView: React.FC<TransitViewProps> = ({
 
   return (
     <div className="transit-view-page">
-      {/* Search Header Overlay */}
-      <div className="transit-view-topbar">
-        <div className="transit-search-bar">
-          <Search size={16} className="search-icon" />
-          <input
-            type="text"
-            placeholder="Поиск остановки в Кишинёве…"
-            value={searchQuery}
-            onChange={(e) => setSearchQuery(e.target.value)}
-          />
-          {searchQuery && (
+      {/* Top Toolbar Above Map */}
+      <div className="map-toolbar">
+        <div className="map-toolbar-primary">
+          <div className="map-search-container">
+            <Search size={18} className="map-search-icon" aria-hidden="true" />
+            <input
+              type="text"
+              className="map-search-input"
+              placeholder="Поиск остановки в Кишинёве…"
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              aria-label="Поиск остановки"
+            />
+            {searchQuery && (
+              <button
+                type="button"
+                className="map-search-clear-btn"
+                onClick={() => setSearchQuery('')}
+                aria-label="Очистить поиск"
+              >
+                <X size={16} />
+              </button>
+            )}
+          </div>
+
+          <div className="map-toolbar-actions">
             <button
               type="button"
-              className="clear-search-btn"
-              onClick={() => setSearchQuery('')}
+              className={`map-tb-btn ${mapMode === 'satellite' ? 'active' : ''}`}
+              onClick={() => setMapMode(mapMode === 'street' ? 'satellite' : 'street')}
+              title={mapMode === 'street' ? 'Включить спутник' : 'Включить схему'}
+              aria-label="Схема или Спутник"
             >
-              <X size={14} />
+              {mapMode === 'satellite' ? <Layers size={18} /> : <GlobeIcon />}
+              <span className="tb-btn-label">{mapMode === 'satellite' ? 'Спутник' : 'Схема'}</span>
             </button>
-          )}
+
+            {isGoogleMode && (
+              <button
+                type="button"
+                className={`map-tb-btn ${showTraffic ? 'active-traffic' : ''}`}
+                onClick={() => setShowTraffic(!showTraffic)}
+                title="Слой пробок"
+                aria-label="Пробки"
+              >
+                <span className="tb-btn-emoji" aria-hidden="true">🚦</span>
+                <span className="tb-btn-label">Пробки</span>
+              </button>
+            )}
+
+            <button
+              type="button"
+              className="map-tb-btn"
+              onClick={handleLocateUser}
+              title="Найти меня на карте"
+              aria-label="Где я"
+            >
+              <Crosshair size={18} />
+              <span className="tb-btn-label">Где я</span>
+            </button>
+
+            <button
+              type="button"
+              className={`map-tb-btn icon-only ${isRefreshing ? 'spin' : ''}`}
+              onClick={handleRefreshClick}
+              title="Обновить троллейбусы"
+              aria-label="Обновить"
+            >
+              <RefreshCw size={18} />
+            </button>
+
+            {onOpenCommuteSettings && (
+              <button
+                type="button"
+                className="map-tb-btn icon-only"
+                onClick={onOpenCommuteSettings}
+                title="Настройка дороги"
+                aria-label="Настройка дороги"
+              >
+                <Settings2 size={18} />
+              </button>
+            )}
+          </div>
         </div>
 
+        {/* Search Results Dropdown */}
         {searchResults.length > 0 && (
-          <div className="transit-search-dropdown">
+          <div className="map-search-dropdown">
             {searchResults.map((stop) => (
               <button
                 key={stop.stop_id}
                 type="button"
-                className="search-drop-item"
+                className="map-search-dropdown-item"
                 onClick={() => handleSelectSearchedStop(stop)}
               >
-                <MapPin size={14} />
-                <div>
+                <MapPin size={18} className="map-drop-pin" />
+                <div className="map-stop-text">
                   <strong>{stop.stop_name}</strong>
                   {stop.stop_desc && <small>{stop.stop_desc}</small>}
                 </div>
@@ -730,6 +795,55 @@ export const TransitView: React.FC<TransitViewProps> = ({
             ))}
           </div>
         )}
+
+        {/* Fast Route Filter Chips Ribbon */}
+        <div className="map-quick-filters" role="tablist" aria-label="Фильтры маршрутов">
+          <button
+            type="button"
+            className={`map-chip ${selectedRouteFilter === 'all' ? 'active' : ''}`}
+            onClick={() => setSelectedRouteFilter('all')}
+          >
+            Все ({activeVehicles.length})
+          </button>
+          {availableRoutes.map((rt) => {
+            const count = activeVehicles.filter((v) => v.route_short_name === rt).length;
+            const color = ROUTE_COLORS[rt] || '#2563eb';
+            return (
+              <button
+                key={rt}
+                type="button"
+                className={`map-chip ${selectedRouteFilter === rt ? 'active' : ''}`}
+                style={{
+                  borderLeftColor: color,
+                  borderLeftWidth: '3.5px',
+                }}
+                onClick={() => setSelectedRouteFilter(rt)}
+              >
+                №{rt} {count > 0 ? `(${count})` : ''}
+              </button>
+            );
+          })}
+
+          <button
+            type="button"
+            className={`map-chip toggle-chip ${showStops ? 'active' : ''}`}
+            onClick={() => setShowStops(!showStops)}
+            title="Показать/скрыть остановки"
+          >
+            🚏 Остановки {stopsList.length > 0 ? `(${stopsList.length})` : ''}
+          </button>
+
+          {isGoogleMode && (
+            <button
+              type="button"
+              className={`map-chip toggle-chip ${showPlanner ? 'active' : ''}`}
+              onClick={() => setShowPlanner(!showPlanner)}
+              title="Планировщик маршрута"
+            >
+              🧭 Маршрут
+            </button>
+          )}
+        </div>
       </div>
 
       {/* Map Main Canvas */}
@@ -759,152 +873,6 @@ export const TransitView: React.FC<TransitViewProps> = ({
             </div>
           </div>
         )}
-
-        {/* Map Top HUD Controls */}
-        <div className="transit-map-controls-hud">
-          {/* Layer Mode Switcher: Street / Satellite */}
-          <div className="map-mode-toggle-group">
-            <button
-              type="button"
-              className={`mode-btn ${mapMode === 'street' ? 'active' : ''}`}
-              onClick={() => setMapMode('street')}
-              title="Обычная схема"
-            >
-              <Layers size={13} />
-              <span>Схема</span>
-            </button>
-            <button
-              type="button"
-              className={`mode-btn ${mapMode === 'satellite' ? 'active' : ''}`}
-              onClick={() => setMapMode('satellite')}
-              title="Спутниковые снимки"
-            >
-              <GlobeIcon />
-              <span>Спутник</span>
-            </button>
-          </div>
-
-          {/* Traffic Toggle (available in Google Maps mode) */}
-          {isGoogleMode && (
-            <button
-              type="button"
-              className={`map-hud-toggle-btn traffic ${showTraffic ? 'active' : ''}`}
-              onClick={() => setShowTraffic(!showTraffic)}
-              title="Слой пробок Google"
-            >
-              <span>🚦 Пробки</span>
-            </button>
-          )}
-
-          {/* Planner Toggle (available in Google Maps mode) */}
-          {isGoogleMode && (
-            <button
-              type="button"
-              className={`map-hud-toggle-btn planner ${showPlanner ? 'active' : ''}`}
-              onClick={() => setShowPlanner(!showPlanner)}
-              title="Планировщик маршрута A->B"
-            >
-              <span>🧭 Маршрут</span>
-            </button>
-          )}
-
-          {/* Route Dropdown Selector */}
-          <div className="map-route-dropdown-wrap">
-            <select
-              value={selectedRouteFilter}
-              onChange={(e) => setSelectedRouteFilter(e.target.value)}
-              className="map-route-select"
-              title="Выбор маршрута"
-            >
-              <option value="all">Все машины ({activeVehicles.length})</option>
-              {availableRoutes.map((rt) => {
-                const count = activeVehicles.filter((v) => v.route_short_name === rt).length;
-                return (
-                  <option key={rt} value={rt}>
-                    Маршрут №{rt} ({count} на линии)
-                  </option>
-                );
-              })}
-            </select>
-          </div>
-
-          {/* Stops Toggle */}
-          <button
-            type="button"
-            className={`map-hud-toggle-btn ${showStops ? 'active' : ''}`}
-            onClick={() => setShowStops(!showStops)}
-            title="Показать/скрыть остановки"
-          >
-            <span>🚏 Остановки</span>
-            {stopsList.length > 0 ? (
-              <small>{stopsList.length}</small>
-            ) : (
-              <small style={{ opacity: 0.6 }}>…</small>
-            )}
-          </button>
-
-          {/* Actions: Commute settings, Locate GPS & Refresh */}
-          <div className="map-hud-actions-cluster">
-            {onOpenCommuteSettings && (
-              <button
-                type="button"
-                className="map-action-round-btn"
-                onClick={onOpenCommuteSettings}
-                title="Настройка дороги"
-                aria-label="Настройка дороги"
-              >
-                <Settings2 size={16} />
-              </button>
-            )}
-            <button
-              type="button"
-              className="map-action-round-btn"
-              onClick={handleLocateUser}
-              title="Где я"
-              aria-label="Найти меня"
-            >
-              <Crosshair size={16} />
-            </button>
-            <button
-              type="button"
-              className={`map-action-round-btn ${isRefreshing ? 'spin' : ''}`}
-              onClick={handleRefreshClick}
-              title="Обновить"
-              aria-label="Обновить троллейбусы"
-            >
-              <RefreshCw size={15} />
-            </button>
-          </div>
-        </div>
-
-        {/* Filter Chips Scrollable */}
-        <div className="transit-routes-filter-row">
-          <button
-            type="button"
-            className={`route-chip ${selectedRouteFilter === 'all' ? 'active' : ''}`}
-            onClick={() => setSelectedRouteFilter('all')}
-          >
-            Все ({activeVehicles.length})
-          </button>
-          {availableRoutes.map((rt) => {
-            const count = activeVehicles.filter((v) => v.route_short_name === rt).length;
-            const color = ROUTE_COLORS[rt] || '#2563eb';
-            return (
-              <button
-                key={rt}
-                type="button"
-                className={`route-chip ${selectedRouteFilter === rt ? 'active' : ''}`}
-                style={{
-                  borderLeftColor: color,
-                  borderLeftWidth: '3.5px',
-                }}
-                onClick={() => setSelectedRouteFilter(rt)}
-              >
-                №{rt} {count > 0 ? `(${count})` : ''}
-              </button>
-            );
-          })}
-        </div>
 
         {/* Floating Active Route Card with Trolley Count */}
         {selectedRouteFilter !== 'all' && (
