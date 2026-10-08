@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useState, Suspense } from 'react';
 import { createRoot } from 'react-dom/client';
 import { BookOpen, CalendarDays, CircleAlert, GraduationCap, Map as MapIcon, Settings, X } from 'lucide-react';
 import './style.css';
@@ -27,7 +27,8 @@ import { HomeworkModal } from './components/HomeworkModal.js';
 import { HomeworkView } from './components/HomeworkView.js';
 import { ScheduleView } from './components/ScheduleView.js';
 import { SettingsView } from './components/SettingsView.js';
-import { TransitView } from './components/TransitView.js';
+
+const TransitView = React.lazy(() => import('./components/TransitView.js'));
 
 function getNowMinutes(): number {
   const f = new Intl.DateTimeFormat('en-GB', {
@@ -145,15 +146,49 @@ export function App() {
     };
 
     loadBootstrap();
+  }, []);
 
-    const transitTimer = setInterval(() => {
+  useEffect(() => {
+    if (view !== 'map') return;
+
+    let timer: any = null;
+
+    const tick = () => {
       request('/api/transit')
         .then(setTransit)
         .catch(() => {});
-    }, 60000);
+    };
 
-    return () => clearInterval(transitTimer);
-  }, []);
+    const start = () => {
+      tick();
+      if (!timer) timer = setInterval(tick, 60000);
+    };
+
+    const stop = () => {
+      if (timer) {
+        clearInterval(timer);
+        timer = null;
+      }
+    };
+
+    const onVisibility = () => {
+      if (document.visibilityState === 'hidden') {
+        stop();
+      } else {
+        start();
+      }
+    };
+
+    if (document.visibilityState !== 'hidden') {
+      start();
+    }
+
+    document.addEventListener('visibilitychange', onVisibility);
+    return () => {
+      stop();
+      document.removeEventListener('visibilitychange', onVisibility);
+    };
+  }, [view]);
 
   useEffect(() => {
     applyTheme(settings?.theme || 'light');
@@ -420,14 +455,28 @@ export function App() {
           onDone={toggleDone}
         />
       ) : view === 'map' ? (
-        <TransitView
-          vehicles={[]}
-          options={commuteOptions}
-          settings={settings}
-          request={request}
-          mapsBrowserKey={mapsBrowserKey}
-          onOpenCommuteSettings={() => setCommuteModal(true)}
-        />
+        <Suspense
+          fallback={
+            <div className="transit-view-page map-skeleton-container" aria-busy="true">
+              <div className="map-toolbar skeleton-box" style={{ height: '90px' }} />
+              <div
+                className="transit-map-fullscreen-container skeleton-box"
+                style={{ display: 'flex', alignItems: 'center', justifyContent: 'center' }}
+              >
+                <div className="map-loading-spinner" />
+              </div>
+            </div>
+          }
+        >
+          <TransitView
+            vehicles={[]}
+            options={commuteOptions}
+            settings={settings}
+            request={request}
+            mapsBrowserKey={mapsBrowserKey}
+            onOpenCommuteSettings={() => setCommuteModal(true)}
+          />
+        </Suspense>
       ) : (
         <HomeView
           selected={selected}

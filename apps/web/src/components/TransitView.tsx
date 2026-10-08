@@ -230,9 +230,42 @@ export const TransitView: React.FC<TransitViewProps> = ({
   }, [request]);
 
   useEffect(() => {
-    fetchLiveVehicles();
-    const timer = setInterval(fetchLiveVehicles, 60000);
-    return () => clearInterval(timer);
+    let timer: any = null;
+
+    const tick = () => {
+      fetchLiveVehicles();
+    };
+
+    const start = () => {
+      tick();
+      if (!timer) timer = setInterval(tick, 60000);
+    };
+
+    const stop = () => {
+      if (timer) {
+        clearInterval(timer);
+        timer = null;
+      }
+    };
+
+    const handleVisibility = () => {
+      if (document.visibilityState === 'hidden') {
+        stop();
+      } else {
+        start();
+      }
+    };
+
+    if (document.visibilityState !== 'hidden') {
+      start();
+    }
+
+    document.addEventListener('visibilitychange', handleVisibility);
+
+    return () => {
+      stop();
+      document.removeEventListener('visibilitychange', handleVisibility);
+    };
   }, [fetchLiveVehicles]);
 
   // Load Google Maps SDK if key is provided
@@ -1242,3 +1275,5 @@ function GlobeIcon() {
     </svg>
   );
 }
+
+export default TransitView;
