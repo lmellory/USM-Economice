@@ -12,6 +12,7 @@ import { notificationTick } from './notifications.js';
 import { dbSettings, validatedSettings } from './settings.js';
 import { saveTransit, syncTranzyStops, transit } from './transit.js';
 import { getUserCommuteOptions, handleTransitRoutes } from './commute.js';
+import { handleTripPlan } from './trip-plan.js';
 import { Env } from './types.js';
 import { handleWebhook } from './webhook.js';
 
@@ -115,7 +116,12 @@ async function apiRequest(request: Request, env: Env, path: string): Promise<Res
       exceptions: exceptionsList,
       transit: t,
       commuteOptions: await getUserCommuteOptions(env, String(user.id)),
+      mapsBrowserKey: env.GOOGLE_MAPS_BROWSER_KEY || '',
     });
+  }
+
+  if (path === '/api/trip/plan' && request.method === 'GET') {
+    return handleTripPlan(request, env, String(user.id));
   }
 
   if (path.startsWith('/api/transit/')) {
