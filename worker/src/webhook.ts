@@ -1,6 +1,6 @@
 import { dateShift, toChisinauDate } from '@usm/shared';
 import { json } from './homework.js';
-import { buildEveningDigest, telegram } from './notifications.js';
+import { buildEveningDigest, buildMorningWeatherMessage, telegram } from './notifications.js';
 import { Env } from './types.js';
 
 export async function handleWebhook(request: Request, env: Env): Promise<Response> {
@@ -23,7 +23,7 @@ export async function handleWebhook(request: Request, env: Env): Promise<Respons
     const url = env.MINI_APP_URL;
     const reply: any = {
       chat_id: m.chat.id,
-      text: `Твоё расписание и план дня — по кнопке ниже. Если ботом пользуешься только ты, сохрани свой Telegram ID: ${m.from.id}.`,
+      text: `Твоё расписание и план дня — по кнопке ниже.\n\nКоманды:\n/weather — погода сейчас, к выходу, что надеть и пожелание на день\n/plan — вечерний план на завтра\n\nТвой Telegram ID: ${m.from.id}`,
     };
     if (url) {
       reply.reply_markup = {
@@ -31,6 +31,32 @@ export async function handleWebhook(request: Request, env: Env): Promise<Respons
       };
     }
     await telegram(env, 'sendMessage', reply);
+    return json({ ok: true });
+  }
+
+  if (
+    (m?.text === '/weather' || m?.text === '/погода') &&
+    m.from?.id &&
+    m.chat?.type === 'private'
+  ) {
+    const today = toChisinauDate(new Date());
+    const chParts = new Intl.DateTimeFormat('en-GB', {
+      timeZone: 'Europe/Chisinau',
+      hour: '2-digit',
+      hourCycle: 'h23',
+    }).formatToParts(new Date());
+    const curHour = Number(chParts.find((p) => p.type === 'hour')?.value || 0);
+
+    const weatherMsg = await buildMorningWeatherMessage(
+      env,
+      String(m.from.id),
+      today,
+      m.from.first_name,
+      curHour
+    );
+    if (weatherMsg) {
+      await telegram(env, 'sendMessage', { chat_id: m.chat.id, text: weatherMsg });
+    }
     return json({ ok: true });
   }
 

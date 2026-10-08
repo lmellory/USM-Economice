@@ -101,8 +101,8 @@ export function HomeView({
   }
 
   const personalizedGreeting = tgFirstName
-    ? `${timeOfDayGreeting}, ${tgFirstName}`
-    : timeOfDayGreeting;
+    ? `${timeOfDayGreeting}, ${tgFirstName}.`
+    : `${timeOfDayGreeting}.`;
 
   const addDays = (d: Date, n: number) => new Date(d.getTime() + n * 86400000);
 
@@ -114,11 +114,7 @@ export function HomeView({
             {dayNames[dateParts(new Date()).weekday - 1]} ·{' '}
             {fmtDate(todayKey, { day: 'numeric', month: 'long', year: 'numeric' })}
           </div>
-          <h1>
-            {personalizedGreeting},
-            <br />
-            <em>без спешки.</em>
-          </h1>
+          <h1>{personalizedGreeting}</h1>
         </div>
         <div className="clock">
           <Clock3 size={15} />

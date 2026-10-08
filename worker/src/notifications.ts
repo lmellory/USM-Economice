@@ -23,6 +23,223 @@ export async function telegram(env: Env, method: string, body: unknown): Promise
   return r.json();
 }
 
+export const DAILY_WISHES_31 = [
+  'Пусть сегодня всё складывается легко, пары пролетят незаметно, а кофе будет идеальным! ☕✨',
+  'Новый день — новые победы. Сохраняй бодрый настрой и верь в свои силы! 🌟',
+  'Пусть мысли будут ясными, конспекты — понятными, а день принесёт приятные новости! 📚💪',
+  'Отличного настроения! Даже самые сложные задачи сегодня решатся на одном дыхании. 🚀',
+  'Пусть сегодня тебя окружают доброжелательные люди и вдохновляющие разговоры. Улыбнись! 😊☀️',
+  'Продуктивного дня! Помни: каждый сделанный шаг приближает тебя к большим целям. 🎯',
+  'Пусть сегодня найдётся время и для отличной учёбы, и для душевного отдыха! 🌿',
+  'Вдохновения, уверенных ответов на парах и мощного заряда бодрости на весь день! ⚡📖',
+  'Сегодня отличный день, чтобы узнать что-то новое и раскрыть свой потенциал. Вперёд! 💫',
+  'Пусть этот день будет наполнен маленькими радостями, теплом и продуктивностью! ☕🥐',
+  'Держи баланс между делами и отдыхом. Ты со всем справишься легко и уверенно! 🧘‍♂️✨',
+  'Пусть преподаватели будут лояльными, одногруппники — на одной волне, а день — результативным! 🎓🤝',
+  'Сегодня твой день! Пусть энергия бьёт ключом, а настроение держится на высоте. 🌈',
+  'Успеха во всех делах! Двигайся уверенно в своём комфортном ритме к намеченным вершинам. 🎯💪',
+  'Пусть этот день подарит полезные инсайты, новые знания и приятные совпадения! 💡',
+  'Продуктивного и лёгкого дня! Пусть даже непростой материал усваивается с первого раза. 🧠✨',
+  'Пусть утро начнётся бодро, дорога будет свободной, а день — насыщенным и интересным! 🚌☀️',
+  'Помни, что ты делаешь большое дело для своего будущего. Гордись своими стараниями! 🏆',
+  'Отличного учебного дня! Пусть всё задуманное на сегодня реализуется чётко и спокойно. 📝',
+  'Пусть сегодня будет день маленьких побед, уютных пауз и отличного настроения! 🥨💛',
+  'Держи фокус на главном и не переживай по пустякам — всё обязательно получится! 🎯✨',
+  'Пусть лекции будут увлекательными, а практические задания даются легко и с интересом! 🔬📑',
+  'Сил, бодрости и уверенности в каждом решении. Ты на правильном пути! 🚀',
+  'Пусть этот день принесёт ощущение реального прогресса и радости от проделанной работы! 📈',
+  'Хорошего дня! Пусть любимый горячий напиток согреет и зарядит бодростью на весь день. 🍵',
+  'Откройся новому дню с уверенной улыбкой — и он обязательно порадует успехами! 😊🌟',
+  'Пусть сегодня всё идёт по плану, а любые неожиданности оказываются приятными сюрпризами! 🍀',
+  'Продуктивности и лёгкости! Твои знания и упорство сильнее любых дедлайнов. 🛡️🔥',
+  'Пусть день будет полон интересных событий, полезных встреч и заслуженных успехов! 🌟',
+  'Завершай дела с удовольствием и не забывай искренне хвалить себя за каждый результат! 👏🎉',
+  'Пусть этот день станет одним из тех ярких дней, которые вспоминаются с гордостью и теплом! 🌅✨',
+];
+
+export function getWeatherConditionDesc(code: number): string {
+  if (code === 0) return 'Ясно ☀️';
+  if (code === 1) return 'В основном ясно 🌤️';
+  if (code === 2) return 'Переменная облачность ⛅';
+  if (code === 3) return 'Пасмурно ☁️';
+  if (code >= 45 && code <= 48) return 'Туман 🌫️';
+  if (code >= 51 && code <= 57) return 'Морось 🌧️';
+  if (code >= 61 && code <= 67) return 'Дождь 🌧️';
+  if (code >= 71 && code <= 77) return 'Снег ❄️';
+  if (code >= 80 && code <= 82) return 'Ливень 🌧️';
+  if (code >= 85 && code <= 86) return 'Снегопад 🌨️';
+  if (code >= 95) return 'Гроза ⛈️';
+  return 'Облачно 🌥️';
+}
+
+export function getClothingAdvice(temp: number, precipProb: number, code: number): string {
+  const parts: string[] = [];
+  if (temp < 0) {
+    parts.push('Зимний пуховик или тёплая куртка, шапка, шарф и тёплая обувь ❄️');
+  } else if (temp < 8) {
+    parts.push('Тёплая куртка или пальто, плотный свитер 🧥');
+  } else if (temp < 15) {
+    parts.push('Куртка, ветровка или толстовка / худи 🧣');
+  } else if (temp < 21) {
+    parts.push('Джинсовка, лонгслив, рубашка или кардиган 👕');
+  } else {
+    parts.push('Лёгкая футболка и комфортные брюки или шорты ☀️');
+  }
+
+  const isRain = (code >= 51 && code <= 67) || (code >= 80 && code <= 82) || code >= 95;
+  if (isRain || precipProb >= 40) {
+    parts.push('Обязательно захвати зонт ☂️ или дождевик!');
+  } else if (precipProb >= 20) {
+    parts.push('Возможен небольшой дождь, зонт лишним не будет 🌂');
+  }
+
+  return parts.join('. ');
+}
+
+export async function buildMorningWeatherMessage(
+  env: Env,
+  userId: string,
+  todayDate: string,
+  firstName?: string,
+  requestedHour?: number
+): Promise<string> {
+  const db = createDb(env);
+  const u = await db
+    .prepare(
+      'SELECT s.*,u.first_name,c.schedule FROM settings s JOIN users u ON u.id=s.user_id LEFT JOIN schedule_overrides c ON c.user_id=s.user_id WHERE u.id=?'
+    )
+    .bind(userId)
+    .first<any>();
+
+  const name = (firstName || u?.first_name || '').trim();
+  const dayOfMonth = Number(todayDate.split('-')[2]) || new Date().getDate();
+  const wish = DAILY_WISHES_31[(dayOfMonth - 1) % DAILY_WISHES_31.length];
+
+  // Determine schedule and leave time for today
+  const weekday = new Date(`${todayDate}T12:00:00Z`).getUTCDay() || 7;
+  const parity = calculateWeekParity(todayDate, u?.semester_start, u?.first_week_parity);
+
+  const [classRows, excRows] = await Promise.all([
+    db.prepare('SELECT * FROM classes WHERE user_id=? ORDER BY day ASC, start ASC, position ASC')
+      .bind(userId)
+      .all(),
+    db.prepare('SELECT * FROM schedule_exceptions WHERE user_id=? AND date=?')
+      .bind(userId, todayDate)
+      .all(),
+  ]);
+
+  let allClasses: ClassItem[];
+  if (classRows.results && classRows.results.length > 0) {
+    allClasses = classRows.results.map(mapClassRow);
+  } else {
+    allClasses = (u?.schedule ? JSON.parse(String(u.schedule)) : baseSchedule) as ClassItem[];
+  }
+  const exceptions = (excRows.results || []).map(mapExceptionRow);
+
+  const rawDaily = allClasses.filter(
+    (c) => c.day === weekday && (!c.parity || (parity && c.parity === parity))
+  );
+  const daily = applyScheduleExceptions(rawDaily, exceptions, todayDate).sort((a, b) =>
+    a.start.localeCompare(b.start)
+  );
+  const activeDaily = daily.filter((c) => !c.isCancelled);
+
+  let leaveTimeStr = '08:00';
+  let leaveDetails = '';
+  let leaveHour = 8;
+
+  if (activeDaily.length > 0) {
+    const first = activeDaily[0];
+    const routine = calculateMorningRoutine(activeDaily, {
+      sleep_hours: u?.sleep_hours ?? 8,
+      sleep_latency: u?.sleep_latency ?? 15,
+      wash_minutes: u?.wash_minutes ?? 20,
+      hair_dry_minutes: u?.hair_dry_minutes ?? 5,
+      breakfast_minutes: u?.breakfast_minutes ?? 30,
+      get_ready_minutes: u?.get_ready_minutes ?? 10,
+      travel_buffer: u?.travel_buffer ?? 10,
+      travel_minutes: u?.travel_minutes ?? 35,
+      english_duration: u?.english_duration ?? 60,
+      target_bedtime: u?.target_bedtime ?? '00:15',
+    });
+
+    if (routine?.leave) {
+      leaveTimeStr = routine.leave;
+      const [h, m] = routine.leave.split(':').map(Number);
+      leaveHour = m >= 30 ? Math.min(23, h + 1) : h;
+    }
+    leaveDetails = ` · первая пара в ${first.start}`;
+  } else {
+    leaveTimeStr = '09:00';
+    leaveHour = 9;
+    leaveDetails = ' · сегодня пар нет';
+  }
+
+  if (requestedHour != null && requestedHour >= 12) {
+    leaveHour = Math.min(23, requestedHour + 1);
+    leaveTimeStr = `${String(leaveHour).padStart(2, '0')}:00`;
+    leaveDetails = '';
+  }
+
+  const greetingLine = name ? `🌤 Доброе утро, ${name}.` : '🌤 Доброе утро.';
+
+  // Fetch live weather from Open-Meteo for Chisinau
+  try {
+    const weatherResp = await fetch(
+      'https://api.open-meteo.com/v1/forecast?latitude=47.0186&longitude=28.8242&current=temperature_2m,apparent_temperature,precipitation,weather_code,wind_speed_10m&hourly=temperature_2m,apparent_temperature,precipitation_probability,weather_code&timezone=Europe/Chisinau&forecast_days=1'
+    );
+    if (!weatherResp.ok) throw new Error(`Weather HTTP ${weatherResp.status}`);
+    const weatherData: any = await weatherResp.json();
+
+    const cur = weatherData.current;
+    const curTemp = Math.round(cur.temperature_2m);
+    const curApparent = Math.round(cur.apparent_temperature);
+    const curDesc = getWeatherConditionDesc(cur.weather_code);
+    const wind = Math.round(cur.wind_speed_10m);
+
+    const safeLeaveHour = Math.max(0, Math.min(23, leaveHour));
+    const hourly = weatherData.hourly;
+    const leaveTemp = Math.round(hourly.temperature_2m[safeLeaveHour]);
+    const leaveApparent = Math.round(hourly.apparent_temperature[safeLeaveHour]);
+    const leavePrecip =
+      hourly.precipitation_probability ? hourly.precipitation_probability[safeLeaveHour] || 0 : 0;
+    const leaveCode = hourly.weather_code[safeLeaveHour];
+    const leaveDesc = getWeatherConditionDesc(leaveCode);
+
+    const clothing = getClothingAdvice(leaveTemp, leavePrecip, leaveCode);
+
+    const lines = [
+      `${greetingLine} Погода в Кишинёве на сегодня:`,
+      '',
+      '🌡 Сейчас (07:00):',
+      `• ${curDesc}`,
+      `• Температура: ${curTemp > 0 ? `+${curTemp}` : curTemp}°C (ощущается как ${curApparent > 0 ? `+${curApparent}` : curApparent}°C)`,
+      `• Ветер: ${wind} км/ч`,
+      '',
+      `🚶 На время выхода (~${leaveTimeStr}${leaveDetails}):`,
+      `• ${leaveDesc}, ${leaveTemp > 0 ? `+${leaveTemp}` : leaveTemp}°C (ощущается как ${leaveApparent > 0 ? `+${leaveApparent}` : leaveApparent}°C)`,
+      leavePrecip > 0 ? `• Вероятность осадков: ${leavePrecip}%` : null,
+      '',
+      '🧥 Что надеть:',
+      `${clothing}`,
+      '',
+      '✨ Пожелание на день:',
+      `${wish}`,
+    ];
+
+    return lines.filter((l) => l !== null).join('\n');
+  } catch {
+    return [
+      `${greetingLine}`,
+      '',
+      'Не удалось загрузить детальный прогноз погоды, но в Кишинёве тебя ждёт отличный день!',
+      '',
+      '✨ Пожелание на день:',
+      `${wish}`,
+    ].join('\n');
+  }
+}
+
 export async function buildEveningDigest(
   env: Env,
   userId: string,
@@ -150,6 +367,19 @@ export async function notificationTick(env: Env): Promise<void> {
         db.prepare(
           'INSERT INTO notification_log(user_id,event_key,next_attempt) VALUES(?,?,?) ON CONFLICT(user_id,event_key) DO NOTHING'
         ).bind(u.user_id, `evening:${today}:${tomorrow}`, nowIso)
+      );
+      await db.batch(inserts);
+    }
+  }
+
+  // Trigger 07:00 morning weather digest
+  if (curHour === 7 && curMin <= 2) {
+    const notifyUsers = await db.prepare('SELECT id AS user_id FROM users').all<any>();
+    if (notifyUsers.results && notifyUsers.results.length > 0) {
+      const inserts = notifyUsers.results.map((u: any) =>
+        db.prepare(
+          'INSERT INTO notification_log(user_id,event_key,next_attempt) VALUES(?,?,?) ON CONFLICT(user_id,event_key) DO NOTHING'
+        ).bind(u.user_id, `morning_weather:${today}:07-00`, nowIso)
       );
       await db.batch(inserts);
     }
@@ -361,6 +591,18 @@ export async function notificationTick(env: Env): Promise<void> {
     } else if (pieces[0] === 'evening') {
       const tomorrowDate = pieces[2];
       message = (await buildEveningDigest(env, n.user_id, tomorrowDate)) || '';
+      if (!message) {
+        await db.prepare('UPDATE notification_log SET sent_at=? WHERE id=?')
+          .bind(nowIso, n.id)
+          .run();
+        continue;
+      }
+    } else if (pieces[0] === 'morning_weather') {
+      const u = await db
+        .prepare('SELECT first_name FROM users WHERE id=?')
+        .bind(n.user_id)
+        .first<any>();
+      message = (await buildMorningWeatherMessage(env, n.user_id, today, u?.first_name)) || '';
       if (!message) {
         await db.prepare('UPDATE notification_log SET sent_at=? WHERE id=?')
           .bind(nowIso, n.id)
