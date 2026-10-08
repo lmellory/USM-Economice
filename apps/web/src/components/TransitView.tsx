@@ -1,6 +1,4 @@
 import React, { useEffect, useRef, useState, useCallback, useMemo } from 'react';
-import L from 'leaflet';
-import 'leaflet/dist/leaflet.css';
 import {
   Search,
   Crosshair,
@@ -122,17 +120,6 @@ export const TransitView: React.FC<TransitViewProps> = ({
   onOpenCommuteSettings,
   mapsBrowserKey,
 }) => {
-  // Leaflet references
-  const containerRef = useRef<HTMLDivElement>(null);
-  const mapInstanceRef = useRef<L.Map | null>(null);
-  const streetLayerRef = useRef<L.TileLayer | null>(null);
-  const satLayerRef = useRef<L.TileLayer | null>(null);
-  const satLabelsLayerRef = useRef<L.TileLayer | null>(null);
-  const routeLayerRef = useRef<L.LayerGroup | null>(null);
-  const vehiclesLayerRef = useRef<L.LayerGroup | null>(null);
-  const stopsLayerRef = useRef<L.LayerGroup | null>(null);
-  const userMarkerRef = useRef<L.Marker | null>(null);
-
   // Google Maps references
   const googleContainerRef = useRef<HTMLDivElement>(null);
   const googleMapInstanceRef = useRef<any>(null);
@@ -354,10 +341,13 @@ export const TransitView: React.FC<TransitViewProps> = ({
       center: { lat: initLat, lng: initLon },
       zoom: 13,
       mapTypeId: mapMode === 'satellite' ? 'hybrid' : 'roadmap',
+      gestureHandling: 'greedy',
       disableDefaultUI: true,
+      clickableIcons: false,
+      keyboardShortcuts: false,
       zoomControl: false,
       mapTypeControl: false,
-      scaleControl: true,
+      scaleControl: false,
       streetViewControl: false,
       rotateControl: false,
       fullscreenControl: false,
@@ -624,390 +614,57 @@ export const TransitView: React.FC<TransitViewProps> = ({
     }
   }, [isGoogleMode, pointA, pointB, tripPlan, selectedRouteIndex]);
 
-  // -------------------------------------------------------------
-  // LEAFLET MAP IMPLEMENTATION (FALLBACK)
-  // -------------------------------------------------------------
+  // Google Route Track Polyline (trajectory of selected trolleybus)
+  const googleRouteTrackPolylineRef = useRef<any>(null);
   useEffect(() => {
-    if (isGoogleMode || !containerRef.current) return;
+    if (!googleMapInstanceRef.current || !window.google?.maps) return;
+    const map = googleMapInstanceRef.current;
 
-    if (mapInstanceRef.current) {
-      mapInstanceRef.current.remove();
-      mapInstanceRef.current = null;
+    if (googleRouteTrackPolylineRef.current) {
+      googleRouteTrackPolylineRef.current.setMap(null);
+      googleRouteTrackPolylineRef.current = null;
     }
 
-    const initLat = userLocation?.lat ?? DEFAULT_CENTER.lat;
-    const initLon = userLocation?.lon ?? DEFAULT_CENTER.lon;
-
-    const map = L.map(containerRef.current, {
-      center: [initLat, initLon],
-      zoom: 13,
-      zoomControl: false,
-      attributionControl: false,
-    });
-    mapInstanceRef.current = map;
-
-    const streetTileUrl = isDark
-      ? 'https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png'
-      : 'https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png';
-
-    const streetLayer = L.tileLayer(streetTileUrl, {
-      subdomains: 'abcd',
-      maxZoom: 19,
-    });
-    streetLayerRef.current = streetLayer;
-
-    const satLayer = L.tileLayer(
-      'https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}',
-      { maxZoom: 19 }
-    );
-    satLayerRef.current = satLayer;
-
-    const satLabelsLayer = L.tileLayer(
-      'https://services.arcgisonline.com/ArcGIS/rest/services/Reference/World_Boundaries_and_Places/MapServer/tile/{z}/{y}/{x}',
-      { maxZoom: 19 }
-    );
-    satLabelsLayerRef.current = satLabelsLayer;
-
-    if (mapMode === 'satellite') {
-      satLayer.addTo(map);
-      satLabelsLayer.addTo(map);
-    } else {
-      streetLayer.addTo(map);
-    }
-
-    routeLayerRef.current = L.layerGroup().addTo(map);
-    stopsLayerRef.current = L.layerGroup().addTo(map);
-    vehiclesLayerRef.current = L.layerGroup().addTo(map);
-
-    map.on('click', (e) => {
-      handleMapClickPoint(e.latlng.lat, e.latlng.lng);
-    });
-
-    setTimeout(() => map.invalidateSize(), 150);
-
-    return () => {
-      map.remove();
-      mapInstanceRef.current = null;
-    };
-  }, [isGoogleMode, isDark]);
-
-  // Leaflet Route Track Polyline
-  useEffect(() => {
-    if (isGoogleMode) return;
-    const map = mapInstanceRef.current;
-    const routeLayer = routeLayerRef.current;
-    if (!map || !routeLayer) return;
-
-    routeLayer.clearLayers();
     if (selectedRouteFilter === 'all') return;
-
     const track = getRouteTrack(selectedRouteFilter, activeVehicles);
     if (!track || !track.waypoints || track.waypoints.length === 0) return;
 
-    const outerGlow = L.polyline(track.waypoints, {
-      color: track.color,
-      weight: 10,
-      opacity: 0.35,
-      lineCap: 'round',
-      lineJoin: 'round',
+    const path = track.waypoints.map((pt) => ({ lat: pt[0], lng: pt[1] }));
+    const color = track.color || ROUTE_COLORS[selectedRouteFilter] || '#d946ef';
+
+    const poly = new window.google.maps.Polyline({
+      path,
+      geodesic: true,
+      strokeColor: color,
+      strokeOpacity: 0.85,
+      strokeWeight: 5,
+      map,
     });
+    googleRouteTrackPolylineRef.current = poly;
 
-    const coreLine = L.polyline(track.waypoints, {
-      color: track.color,
-      weight: 5,
-      opacity: 0.95,
-      lineCap: 'round',
-      lineJoin: 'round',
-    });
+    const bounds = new window.google.maps.LatLngBounds();
+    path.forEach((pt) => bounds.extend(pt));
+    map.fitBounds(bounds, { top: 70, bottom: 200, left: 40, right: 40 });
+  }, [selectedRouteFilter, activeVehicles]);
 
-    const routeVehiclesCount = activeVehicles.filter(
-      (v) => v.route_short_name === selectedRouteFilter
-    ).length;
 
-    coreLine.bindPopup(
-      `<div class="map-trolley-popup">
-        <div class="popup-head" style="background: ${track.color}">
-          <strong>${track.routeName}</strong>
-          <span>${routeVehiclesCount} ${
-        routeVehiclesCount === 1 ? 'машина' : routeVehiclesCount < 5 ? 'машины' : 'машин'
-      }</span>
-        </div>
-        <div class="popup-body">
-          <small>${track.description}</small>
-        </div>
-      </div>`,
-      { offset: [0, -4] }
-    );
-
-    outerGlow.addTo(routeLayer);
-    coreLine.addTo(routeLayer);
-
-    try {
-      const bounds = coreLine.getBounds();
-      if (bounds.isValid()) {
-        map.fitBounds(bounds, { padding: [45, 45], maxZoom: 15 });
-      }
-    } catch {
-      // Handled silently
-    }
-  }, [isGoogleMode, selectedRouteFilter, activeVehicles]);
-
-  // Leaflet Mode Switch (Street / Satellite)
-  useEffect(() => {
-    if (isGoogleMode) return;
-    const map = mapInstanceRef.current;
-    const street = streetLayerRef.current;
-    const sat = satLayerRef.current;
-    const satLabels = satLabelsLayerRef.current;
-    if (!map || !street || !sat || !satLabels) return;
-
-    if (mapMode === 'satellite') {
-      map.removeLayer(street);
-      map.addLayer(sat);
-      map.addLayer(satLabels);
-    } else {
-      map.removeLayer(sat);
-      map.removeLayer(satLabels);
-      map.addLayer(street);
-    }
-  }, [isGoogleMode, mapMode]);
-
-  // Leaflet User Marker
-  useEffect(() => {
-    if (isGoogleMode) return;
-    const map = mapInstanceRef.current;
-    if (!map) return;
-
-    if (userMarkerRef.current) {
-      map.removeLayer(userMarkerRef.current);
-      userMarkerRef.current = null;
-    }
-
-    if (userLocation) {
-      const userHtml = `
-        <div class="map-user-pin">
-          <div class="user-pulse-ring"></div>
-          <div class="user-dot"></div>
-        </div>
-      `;
-      const userIcon = L.divIcon({
-        className: 'custom-user-marker',
-        html: userHtml,
-        iconSize: [24, 24],
-        iconAnchor: [12, 12],
-      });
-
-      const uMarker = L.marker([userLocation.lat, userLocation.lon], { icon: userIcon })
-        .bindPopup(
-          `<div class="map-popup-card">
-            <b>📍 Ты здесь</b>
-            <small>Координаты: ${userLocation.lat.toFixed(4)}, ${userLocation.lon.toFixed(4)}</small>
-          </div>`
-        )
-        .addTo(map);
-
-      userMarkerRef.current = uMarker;
-    }
-  }, [isGoogleMode, userLocation]);
-
-  // Leaflet Stops
-  useEffect(() => {
-    if (isGoogleMode) return;
-    const layer = stopsLayerRef.current;
-    if (!layer) return;
-
-    layer.clearLayers();
-    if (!showStops) return;
-
-    stopsList.forEach((stop) => {
-      const isBoarding =
-        stop.stop_name.toLowerCase().includes('cuza vodă') ||
-        stop.stop_name.toLowerCase().includes('dacia') ||
-        stop.stop_name.toLowerCase() === boardingStopName.toLowerCase();
-
-      const isUni =
-        stop.stop_name.toLowerCase().includes('usm') ||
-        stop.stop_name.toLowerCase().includes('stat');
-
-      const isSports =
-        stop.stop_name.toLowerCase().includes('sport') ||
-        stop.stop_name.toLowerCase().includes('ismail 1');
-
-      let stopPinClass = 'stop-dot-regular';
-      let stopIconHtml = `<div class="map-stop-pin ${stopPinClass}"><span class="stop-dot"></span></div>`;
-
-      if (isBoarding) {
-        stopPinClass = 'stop-dot-boarding';
-        stopIconHtml = `
-          <div class="map-stop-pin ${stopPinClass}">
-            <span class="stop-star-badge">🚏 Посадка</span>
-          </div>
-        `;
-      } else if (isUni || isSports) {
-        stopPinClass = 'stop-dot-dest';
-        stopIconHtml = `
-          <div class="map-stop-pin ${stopPinClass}">
-            <span class="stop-dest-badge">${isUni ? '🎓 USM' : '🏅 Спорт'}</span>
-          </div>
-        `;
-      }
-
-      const icon = L.divIcon({
-        className: 'custom-stop-marker-item',
-        html: stopIconHtml,
-        iconSize: isBoarding || isUni || isSports ? [70, 22] : [14, 14],
-        iconAnchor: isBoarding || isUni || isSports ? [35, 11] : [7, 7],
-      });
-
-      let distMeters: number | null = null;
-      if (userLocation) {
-        distMeters = Math.round(
-          haversineDistanceMeters(userLocation.lat, userLocation.lon, stop.stop_lat, stop.stop_lon)
-        );
-      }
-
-      const marker = L.marker([stop.stop_lat, stop.stop_lon], { icon }).addTo(layer);
-
-      const popupHtml = `
-        <div class="map-stop-popup-card">
-          <div class="stop-popup-head">
-            <b>🚏 ${stop.stop_name}</b>
-            ${stop.stop_desc ? `<small>${stop.stop_desc}</small>` : ''}
-          </div>
-          <div class="stop-popup-body">
-            ${
-              distMeters != null
-                ? `<div class="stop-popup-row">
-                    <span>Расстояние от тебя:</span>
-                    <b>${distMeters} м (~${Math.max(1, Math.round(distMeters / 75))} мин пешком)</b>
-                  </div>`
-                : ''
-            }
-            <div class="stop-popup-row">
-              <span>Координаты:</span>
-              <span>${stop.stop_lat.toFixed(4)}, ${stop.stop_lon.toFixed(4)}</span>
-            </div>
-          </div>
-        </div>
-      `;
-
-      marker.bindPopup(popupHtml, { offset: [0, -6] });
-      marker.on('click', () => setSelectedStop(stop));
-    });
-  }, [isGoogleMode, stopsList, showStops, userLocation, boardingStopName]);
-
-  // Leaflet Trolleybuses
-  useEffect(() => {
-    if (isGoogleMode) return;
-    const layer = vehiclesLayerRef.current;
-    if (!layer) return;
-
-    layer.clearLayers();
-
-    const filtered = activeVehicles.filter((v) => {
-      if (selectedRouteFilter !== 'all' && v.route_short_name !== selectedRouteFilter) {
-        return false;
-      }
-      return true;
-    });
-
-    filtered.forEach((veh) => {
-      const color = ROUTE_COLORS[veh.route_short_name] || '#2563eb';
-      const speedKmH = Math.round(veh.speed);
-
-      let distToUserMeters: number | null = null;
-      if (userLocation) {
-        distToUserMeters = Math.round(
-          haversineDistanceMeters(userLocation.lat, userLocation.lon, veh.latitude, veh.longitude)
-        );
-      }
-
-      const routeVehiclesCount = activeVehicles.filter(
-        (v) => v.route_short_name === veh.route_short_name
-      ).length;
-
-      const trolleyHtml = `
-        <div class="map-trolley-pin" style="--route-color: ${color}">
-          <span class="trolley-nav-arrow" aria-hidden="true">➤</span>
-          <span class="trolley-pin-num">${veh.route_short_name}</span>
-          ${speedKmH > 2 ? `<span class="trolley-speed-tag">${speedKmH}</span>` : ''}
-        </div>
-      `;
-
-      const tIcon = L.divIcon({
-        className: 'custom-trolley-marker',
-        html: trolleyHtml,
-        iconSize: [44, 26],
-        iconAnchor: [22, 13],
-      });
-
-      const popupHtml = `
-        <div class="map-trolley-popup">
-          <div class="popup-head" style="background: ${color}">
-            <strong>Троллейбус №${veh.route_short_name}</strong>
-            <span>борт ${veh.label || '—'}</span>
-          </div>
-          <div class="popup-body">
-            <div class="popup-row active-route-row-badge">
-              <span>На этом маршруте:</span>
-              <b>${routeVehiclesCount} ${
-        routeVehiclesCount === 1 ? 'машина' : routeVehiclesCount < 5 ? 'машины' : 'машин'
-      }</b>
-            </div>
-            ${
-              distToUserMeters != null
-                ? `<div class="popup-row">
-                    <span>До тебя:</span>
-                    <b>${distToUserMeters} м (~${Math.max(1, Math.round(distToUserMeters / 300))} мин)</b>
-                  </div>`
-                : ''
-            }
-            <div class="popup-row">
-              <span>Скорость:</span>
-              <b>${speedKmH} км/ч</b>
-            </div>
-            <div class="popup-row">
-              <span>GPS обновление:</span>
-              <small>${new Date(veh.timestamp).toLocaleTimeString('ru-RU', {
-                hour: '2-digit',
-                minute: '2-digit',
-                second: '2-digit',
-              })}</small>
-            </div>
-          </div>
-        </div>
-      `;
-
-      const trolleyMarker = L.marker([veh.latitude, veh.longitude], { icon: tIcon })
-        .bindPopup(popupHtml, { closeButton: false, offset: [0, -10] })
-        .addTo(layer);
-
-      trolleyMarker.on('click', () => {
-        setSelectedRouteFilter(veh.route_short_name);
-      });
-    });
-  }, [isGoogleMode, activeVehicles, selectedRouteFilter, userLocation]);
 
   // Center on User GPS
   const handleLocateUser = useCallback(() => {
     const target = userLocation || DEFAULT_CENTER;
-    if (isGoogleMode && googleMapInstanceRef.current) {
+    if (googleMapInstanceRef.current) {
       googleMapInstanceRef.current.panTo({ lat: target.lat, lng: target.lon });
       googleMapInstanceRef.current.setZoom(15);
-    } else if (mapInstanceRef.current) {
-      mapInstanceRef.current.flyTo([target.lat, target.lon], 15, { duration: 0.8 });
     }
-  }, [isGoogleMode, userLocation]);
+  }, [userLocation]);
 
   // Center on Selected Stop
   const handleSelectSearchedStop = (stop: TransitStop) => {
     setSearchQuery('');
     setSelectedStop(stop);
-    if (isGoogleMode && googleMapInstanceRef.current) {
+    if (googleMapInstanceRef.current) {
       googleMapInstanceRef.current.panTo({ lat: stop.stop_lat, lng: stop.stop_lon });
       googleMapInstanceRef.current.setZoom(16);
-    } else if (mapInstanceRef.current) {
-      mapInstanceRef.current.flyTo([stop.stop_lat, stop.stop_lon], 16, { duration: 0.8 });
     }
   };
 
@@ -1077,10 +734,30 @@ export const TransitView: React.FC<TransitViewProps> = ({
 
       {/* Map Main Canvas */}
       <div className="transit-map-fullscreen-container">
-        {isGoogleMode ? (
-          <div ref={googleContainerRef} className="google-map-fullcanvas" />
-        ) : (
-          <div ref={containerRef} className="transit-map-fullcanvas" />
+        <div ref={googleContainerRef} className="google-map-fullcanvas" />
+        {!isGoogleMode && (
+          <div className="map-fallback-overlay">
+            <div className="map-fallback-card">
+              {googleMapsError ? (
+                <>
+                  <CircleAlert size={28} color="#ef4444" />
+                  <strong>Ошибка загрузки карты</strong>
+                  <p>{googleMapsError}</p>
+                </>
+              ) : !mapsBrowserKey ? (
+                <>
+                  <CircleAlert size={28} color="#f59e0b" />
+                  <strong>Ключ Google Maps не найден</strong>
+                  <p>Проверьте настройки окружения (VITE_GOOGLE_MAPS_KEY)</p>
+                </>
+              ) : (
+                <>
+                  <div className="map-loading-spinner" />
+                  <p>Загрузка Google Maps…</p>
+                </>
+              )}
+            </div>
+          </div>
         )}
 
         {/* Map Top HUD Controls */}
