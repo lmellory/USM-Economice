@@ -6,7 +6,8 @@
   "scripts": {
     "typecheck": "tsc --noEmit -p tsconfig.json",
     "deploy": "wrangler deploy",
-    "migrate": "wrangler d1 migrations apply usm-life --remote"
+    "migrate": "wrangler d1 migrations apply usm-life --remote",
+    "migrate:turso": "node scripts/migrate-turso.mjs"
   },
   "dependencies": {
     "@libsql/client": "^0.18.0",

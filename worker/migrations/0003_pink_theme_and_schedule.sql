@@ -31,7 +31,7 @@ SELECT
   user_id, semester_start, first_week_parity, english_duration, sleep_hours, sleep_latency,
   wash_minutes, breakfast_minutes, get_ready_minutes, travel_buffer, home_address, university_address,
   theme, reminders_enabled, reminder_minutes, wake_reminder, sleep_reminder, updated_at,
-  COALESCE(leave_reminder, 0), COALESCE(travel_minutes, 35)
+  COALESCE(leave_reminder, 0), 35
 FROM settings;
 
 DROP TABLE settings;
