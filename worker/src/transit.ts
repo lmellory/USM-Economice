@@ -138,6 +138,25 @@ export async function syncTranzyStops(env: Env): Promise<{ count: number; error?
       await env.DB.batch(stmts.slice(i, i + 50));
     }
 
+    // Сохраняем весь список остановок одной строкой в app_state и метку синхронизации
+    const normalizedStops = stopsList.map((s: any) => ({
+      stop_id: Number(s.stop_id),
+      stop_name: String(s.stop_name || ''),
+      stop_desc: s.stop_desc ? String(s.stop_desc) : undefined,
+      stop_lat: Number(s.stop_lat),
+      stop_lon: Number(s.stop_lon),
+    }));
+    const stopsJson = JSON.stringify(normalizedStops);
+
+    await env.DB.batch([
+      env.DB.prepare(
+        'INSERT INTO app_state(key, value, updated_at) VALUES(?,?,?) ON CONFLICT(key) DO UPDATE SET value=excluded.value, updated_at=excluded.updated_at'
+      ).bind('stops_json', stopsJson, nowSec),
+      env.DB.prepare(
+        'INSERT INTO app_state(key, value, updated_at) VALUES(?,?,?) ON CONFLICT(key) DO UPDATE SET value=excluded.value, updated_at=excluded.updated_at'
+      ).bind('stops_synced_at', String(nowSec), nowSec),
+    ]);
+
     return { count: stopsList.length };
   } catch (err: any) {
     return { count: 0, error: String(err?.message) };
@@ -161,8 +180,17 @@ export async function saveTransit(env: Env): Promise<void> {
     .run();
 
   try {
-    const countRow = await env.DB.prepare('SELECT count(*) as cnt FROM tranzy_stops').first<{ cnt: number }>();
-    if (!countRow || countRow.cnt < 30) {
+    const res = await env.DB.prepare(
+      "SELECT value, updated_at FROM app_state WHERE key = 'stops_synced_at'"
+    ).all<{ value: string; updated_at: number }>();
+    if (res.meta?.rows_read !== undefined) {
+      console.log('[D1_AUDIT_ROWS_READ] saveTransit stops_synced_at rows_read:', res.meta.rows_read);
+    }
+    const syncRow = res.results?.[0];
+    const nowSec = Math.floor(Date.now() / 1000);
+    const syncedAt = syncRow ? Number(syncRow.value || syncRow.updated_at) : 0;
+    const SEVEN_DAYS_SEC = 7 * 24 * 60 * 60; // 604800 секунд
+    if (!syncedAt || nowSec - syncedAt > SEVEN_DAYS_SEC) {
       await syncTranzyStops(env);
     }
   } catch {
