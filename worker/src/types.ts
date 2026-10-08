@@ -2,6 +2,8 @@ import { ClassItem } from '@usm/shared';
 
 export interface Env {
   DB: D1Database;
+  TURSO_URL?: string;
+  TURSO_AUTH_TOKEN?: string;
   ASSETS: Fetcher;
   BOT_TOKEN: string;
   TELEGRAM_WEBHOOK_SECRET: string;

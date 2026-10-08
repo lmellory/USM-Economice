@@ -9,6 +9,7 @@
     "migrate": "wrangler d1 migrations apply usm-life --remote"
   },
   "dependencies": {
+    "@libsql/client": "^0.18.0",
     "@usm/shared": "*"
   },
   "devDependencies": {
