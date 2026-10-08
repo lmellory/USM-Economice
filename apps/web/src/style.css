@@ -19,6 +19,12 @@
 * {
   box-sizing: border-box;
 }
+html,
+body {
+  touch-action: manipulation;
+  overscroll-behavior: none;
+  -webkit-text-size-adjust: 100%;
+}
 body {
   margin: 0;
   min-width: 320px;
@@ -30,6 +36,11 @@ textarea,
 select {
   font: inherit;
 }
+input,
+textarea,
+select {
+  font-size: 16px;
+}
 button {
   border: 0;
   color: inherit;
@@ -38,11 +49,34 @@ button {
 }
 .app {
   max-width: 520px;
-  min-height: 100dvh;
+  min-height: var(--tg-viewport-stable-height, 100dvh);
   margin: 0 auto;
   padding: env(safe-area-inset-top) 21px calc(98px + env(safe-area-inset-bottom));
   position: relative;
   overflow: hidden;
+}
+.app.view-map {
+  height: var(--tg-viewport-stable-height, 100dvh);
+  display: flex;
+  flex-direction: column;
+}
+.app.view-map .top {
+  flex-shrink: 0;
+}
+.app.view-map .transit-view-page {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+}
+.app.view-map .transit-view-topbar {
+  flex-shrink: 0;
+}
+.app.view-map .transit-map-fullscreen-container {
+  flex: 1;
+  min-height: 0;
+  height: auto;
+  width: 100%;
 }
 .top {
   height: 56px;
@@ -857,7 +891,7 @@ button {
   padding: 11px 12px;
   margin-top: 6px;
   color: #303531;
-  font-size: 12px;
+  font-size: 16px;
   outline: none;
 }
 .modal input:focus,
@@ -1014,7 +1048,7 @@ button {
   height: 38px;
   padding: 8px 10px;
   margin-top: 5px;
-  font-size: 11px;
+  font-size: 16px;
 }
 .setting-field > div {
   display: flex;
@@ -1736,7 +1770,7 @@ button {
   border-radius: 8px;
   border: 1px solid var(--border, #d1d5db);
   background: var(--input-bg, #fff);
-  font: 600 13px 'Inter';
+  font: 600 16px 'Inter';
   color: var(--text, #111827);
 }
 
@@ -1842,7 +1876,7 @@ button {
   flex: 1;
   border: none;
   outline: none;
-  font: 500 13px/1 'Inter';
+  font: 500 16px/1 'Inter';
   background: transparent;
   color: var(--text, #111827);
 }
@@ -2134,7 +2168,7 @@ button {
   border: none;
   background: transparent;
   outline: none;
-  font: 500 13px 'DM Sans', sans-serif;
+  font: 500 16px 'DM Sans', sans-serif;
   color: var(--ink, #1f2937);
 }
 
@@ -2202,8 +2236,8 @@ button {
 .transit-map-fullscreen-container {
   position: relative;
   width: 100%;
-  height: calc(100dvh - 180px);
-  min-height: 480px;
+  flex: 1;
+  min-height: 0;
   border-radius: 16px;
   overflow: hidden;
   border: 1px solid var(--line, #e5e7eb);
@@ -2211,7 +2245,8 @@ button {
   background: #0f172a;
 }
 
-.transit-map-fullcanvas {
+.transit-map-fullcanvas,
+.google-map-fullcanvas {
   width: 100%;
   height: 100%;
   z-index: 1;

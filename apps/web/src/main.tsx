@@ -100,6 +100,13 @@ export function App() {
     if (tg) {
       tg.ready();
       tg.expand();
+      try {
+        if (typeof tg.disableVerticalSwipes === 'function') {
+          tg.disableVerticalSwipes();
+        }
+      } catch {
+        // Fallback for older Telegram clients
+      }
     }
 
     const loadBootstrap = async () => {
@@ -367,7 +374,7 @@ export function App() {
   };
 
   return (
-    <main className="app">
+    <main className={`app view-${view}`}>
       <header className="top">
         <div className="brand">
           <div className="brand-mark">
