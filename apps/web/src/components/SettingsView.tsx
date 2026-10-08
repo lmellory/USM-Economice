@@ -7,6 +7,7 @@ import {
   CircleAlert,
   House,
   Moon,
+  ShieldCheck,
   Sparkles,
   Sunrise,
 } from 'lucide-react';
@@ -369,6 +370,33 @@ export function SettingsView({
         <div className="notice">
           Время подъёма и выхода рассчитывается заранее — Telegram напомнит, когда пора собираться и
           выходить.
+        </div>
+      </section>
+
+      <section className="setting-card">
+        <h3>
+          <ShieldCheck size={17} /> О приложении и конфиденциальность
+        </h3>
+        <p style={{ margin: '4px 0 12px', fontSize: '0.85rem', color: 'var(--muted, #64748b)' }}>
+          USM Life v1.2 · Персональный студенческий ассистент с онлайн-транспортом и погодой.
+        </p>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+          <a
+            href="/privacy.html"
+            target="_blank"
+            rel="noopener noreferrer"
+            style={{
+              display: 'inline-flex',
+              alignItems: 'center',
+              gap: '8px',
+              fontSize: '0.9rem',
+              color: 'var(--primary, #0284c7)',
+              textDecoration: 'none',
+              fontWeight: 500,
+            }}
+          >
+            <ShieldCheck size={16} /> Политика конфиденциальности (Privacy Policy)
+          </a>
         </div>
       </section>
     </>
