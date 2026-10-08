@@ -1,5 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { checkTripPlanRateLimit, handleTripPlan } from '../src/trip-plan.js';
+import { _resetStopsCacheForTesting } from '../src/commute.js';
 
 function createMockD1() {
   const store: Record<string, number> = {};
@@ -25,6 +26,29 @@ function createMockD1() {
           return null;
         },
         async all() {
+          if (sql.includes('app_state') && sql.includes('stops_json')) {
+            return {
+              meta: { rows_read: 1 },
+              results: [
+                {
+                  value: JSON.stringify([
+                    {
+                      stop_id: 101,
+                      stop_name: 'Dacia / Cuza Vodă',
+                      stop_lat: 46.9825,
+                      stop_lon: 28.865,
+                    },
+                    {
+                      stop_id: 301,
+                      stop_name: 'Universitatea de Stat',
+                      stop_lat: 47.0185,
+                      stop_lon: 28.824,
+                    },
+                  ]),
+                },
+              ],
+            };
+          }
           if (sql.includes('SELECT * FROM tranzy_stops')) {
             return {
               results: [
@@ -66,6 +90,7 @@ describe('Worker Trip Plan API (/api/trip/plan)', () => {
   let mockDb: any;
 
   beforeEach(() => {
+    _resetStopsCacheForTesting();
     mockDb = createMockD1();
     vi.restoreAllMocks();
   });

@@ -19,63 +19,92 @@ export { fetchLiveVehicles };
 
 let STOPS_CACHE: TransitStop[] | null = null;
 let STOPS_CACHE_TIME = 0;
+let LAST_D1_STOPS_ERROR_TIME = 0;
+const D1_RETRY_COOLDOWN_MS = 60000;
+const SEVEN_DAYS_SEC = 7 * 24 * 60 * 60; // 604800 секунд
+
+export function _resetStopsCacheForTesting(
+  cache: TransitStop[] | null = null,
+  cacheTime = 0,
+  lastErrorTime = 0
+): void {
+  STOPS_CACHE = cache;
+  STOPS_CACHE_TIME = cacheTime;
+  LAST_D1_STOPS_ERROR_TIME = lastErrorTime;
+}
 
 /**
  * Ensures stops table in D1 is populated from Tranzy OpenData.
- * If 0 stops exist, attempts to sync real stops from Tranzy OpenData.
+ * Syncs only if 'stops_synced_at' is absent or older than 7 days.
  */
 export async function ensureStopsPopulated(env: Env): Promise<void> {
-  if (STOPS_CACHE && STOPS_CACHE.length > 0) return;
+  const now = Date.now();
+  if (now - LAST_D1_STOPS_ERROR_TIME < D1_RETRY_COOLDOWN_MS) {
+    return;
+  }
   try {
-    const countRow = await env.DB.prepare('SELECT COUNT(*) as c FROM tranzy_stops').first<{
-      c: number;
-    }>();
-    if (!countRow || countRow.c === 0) {
+    const res = await env.DB.prepare(
+      "SELECT value, updated_at FROM app_state WHERE key = 'stops_synced_at'"
+    ).all<{ value: string; updated_at: number }>();
+    if (res.meta?.rows_read !== undefined) {
+      console.log('[D1_AUDIT_ROWS_READ] ensureStopsPopulated stops_synced_at rows_read:', res.meta.rows_read);
+    }
+    const syncRow = res.results?.[0];
+    const nowSec = Math.floor(now / 1000);
+    const syncedAt = syncRow ? Number(syncRow.value || syncRow.updated_at) : 0;
+    if (!syncedAt || nowSec - syncedAt > SEVEN_DAYS_SEC) {
       await syncTranzyStops(env);
     }
   } catch {
+    LAST_D1_STOPS_ERROR_TIME = now;
     // Non-fatal if stops sync fails or quota exceeded
   }
 }
 
 /**
  * Searches stops by query string with in-memory caching to protect D1 read quota.
+ * On cold start, reads only a single row ('stops_json') from app_state.
  */
 export async function searchStops(env: Env, query: string, limit: number = 500): Promise<TransitStop[]> {
   const now = Date.now();
   if (!STOPS_CACHE || now - STOPS_CACHE_TIME > 3600000) {
-    try {
-      await ensureStopsPopulated(env);
-      const all = await env.DB.prepare('SELECT * FROM tranzy_stops ORDER BY stop_name ASC LIMIT 1500')
-        .all<any>();
-      if (all.results && all.results.length > 0) {
-        STOPS_CACHE = (all.results || []).map((r) => ({
-          stop_id: Number(r.stop_id),
-          stop_name: String(r.stop_name),
-          stop_desc: r.stop_desc || undefined,
-          stop_lat: Number(r.stop_lat),
-          stop_lon: Number(r.stop_lon),
-        }));
-        STOPS_CACHE_TIME = now;
-      }
-    } catch {
-      // Если D1 квота исчерпана, загружаем реальные остановки напрямую из Tranzy API в память
-      if (!STOPS_CACHE || STOPS_CACHE.length === 0) {
-        try {
-          const rawStops = await fetchTranzyStopsRaw(env);
-          if (rawStops && rawStops.length > 0) {
-            STOPS_CACHE = rawStops.map((r: any) => ({
-              stop_id: Number(r.stop_id),
-              stop_name: String(r.stop_name),
-              stop_desc: r.stop_desc || undefined,
-              stop_lat: Number(r.stop_lat),
-              stop_lon: Number(r.stop_lon),
-            }));
+    if (now - LAST_D1_STOPS_ERROR_TIME >= D1_RETRY_COOLDOWN_MS) {
+      try {
+        const res = await env.DB.prepare(
+          "SELECT value FROM app_state WHERE key = 'stops_json'"
+        ).all<{ value: string }>();
+        if (res.meta?.rows_read !== undefined) {
+          console.log('[D1_AUDIT_ROWS_READ] searchStops stops_json rows_read:', res.meta.rows_read);
+        }
+        const row = res.results?.[0];
+        if (row?.value) {
+          const parsed = JSON.parse(row.value);
+          if (Array.isArray(parsed) && parsed.length > 0) {
+            STOPS_CACHE = parsed;
             STOPS_CACHE_TIME = now;
           }
-        } catch {
-          // Игнорируем сетевые сбои
         }
+      } catch {
+        LAST_D1_STOPS_ERROR_TIME = now;
+      }
+    }
+
+    // Если строки stops_json нет в app_state, запасной путь через Tranzy как сейчас
+    if (!STOPS_CACHE || STOPS_CACHE.length === 0) {
+      try {
+        const rawStops = await fetchTranzyStopsRaw(env);
+        if (rawStops && rawStops.length > 0) {
+          STOPS_CACHE = rawStops.map((r: any) => ({
+            stop_id: Number(r.stop_id),
+            stop_name: String(r.stop_name),
+            stop_desc: r.stop_desc || undefined,
+            stop_lat: Number(r.stop_lat),
+            stop_lon: Number(r.stop_lon),
+          }));
+          STOPS_CACHE_TIME = now;
+        }
+      } catch {
+        // Игнорируем сетевые сбои
       }
     }
   }
