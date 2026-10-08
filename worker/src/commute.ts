@@ -11,7 +11,7 @@ import {
 } from '@usm/shared';
 import { json } from './homework.js';
 import { Env } from './types.js';
-import { fetchLiveVehicles } from './tranzy.js';
+import { fetchLiveVehicles, fetchTranzyStopsRaw } from './tranzy.js';
 
 import { syncTranzyStops } from './transit.js';
 
@@ -59,7 +59,24 @@ export async function searchStops(env: Env, query: string, limit: number = 500):
         STOPS_CACHE_TIME = now;
       }
     } catch {
-      // Non-fatal if D1 quota is exceeded
+      // Если D1 квота исчерпана, загружаем реальные остановки напрямую из Tranzy API в память
+      if (!STOPS_CACHE || STOPS_CACHE.length === 0) {
+        try {
+          const rawStops = await fetchTranzyStopsRaw(env);
+          if (rawStops && rawStops.length > 0) {
+            STOPS_CACHE = rawStops.map((r: any) => ({
+              stop_id: Number(r.stop_id),
+              stop_name: String(r.stop_name),
+              stop_desc: r.stop_desc || undefined,
+              stop_lat: Number(r.stop_lat),
+              stop_lon: Number(r.stop_lon),
+            }));
+            STOPS_CACHE_TIME = now;
+          }
+        } catch {
+          // Игнорируем сетевые сбои
+        }
+      }
     }
   }
 
