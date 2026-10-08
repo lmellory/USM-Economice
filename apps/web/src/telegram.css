@@ -1,5 +1,6 @@
 body {
-  background: var(--tg-theme-bg-color, #f6f5f1);
+  background: var(--bg);
+  color: var(--text);
 }
 .app {
   padding-top: max(
@@ -17,11 +18,11 @@ body {
   );
 }
 .bottom-nav button.active {
-  color: var(--tg-theme-button-color, #758a78);
+  color: var(--accent);
 }
 .primary-btn {
-  background: var(--tg-theme-button-color, #758a78);
-  color: var(--tg-theme-button-text-color, #fff);
+  background: var(--accent);
+  color: #fff;
 }
 .theme-picker {
   display: grid;
@@ -31,10 +32,10 @@ body {
 }
 .theme-picker button {
   height: 40px;
-  border: 1px solid #e6e5df;
+  border: 1px solid var(--border);
   border-radius: 10px;
-  background: #f8f7f3;
-  color: #858b84;
+  background: var(--surface);
+  color: var(--muted);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -42,8 +43,8 @@ body {
   font-size: 11px;
 }
 .theme-picker button.selected {
-  background: #e9efe8;
-  border-color: #cdd8cc;
-  color: #6f8672;
+  background: var(--accent);
+  border-color: var(--accent);
+  color: #fff;
   font-weight: 600;
 }
