@@ -407,6 +407,7 @@ export function App() {
           options={commuteOptions}
           settings={settings}
           request={request}
+          onOpenCommuteSettings={() => setCommuteModal(true)}
         />
       ) : (
         <HomeView
@@ -420,7 +421,6 @@ export function App() {
           daySchedule={daySchedule}
           studyWeekLabel={studyWeekLabel}
           settings={settings}
-          transit={transit}
           routine={routine}
           nowMinutes={nowMinutes}
           dayTasks={dayTasks}
@@ -431,9 +431,6 @@ export function App() {
           vibrate={vibrate}
           onOpenExceptionModal={openExceptionModal}
           onDeleteException={deleteException}
-          commuteOptions={commuteOptions}
-          onOpenCommuteSettings={() => setCommuteModal(true)}
-          request={request}
         />
       )}
 

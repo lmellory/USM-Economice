@@ -51,9 +51,6 @@ body.dark-theme {
 .dark-theme .icon-chip {
   background: #34342f;
 }
-.dark-theme .journey {
-  background: #332b25;
-}
 .dark-theme .sleep {
   background: #292932;
 }
@@ -121,30 +118,6 @@ body.dark-theme {
   border-color: #758a78;
   color: #fff;
 }
-.dark-theme .live-badge {
-  background: #3b322a;
-  color: #c9a98e;
-}
-.dark-theme .live-badge.on {
-  background: #233527;
-  color: #89c493;
-}
-.dark-theme .journey-target {
-  color: #d5cdc2;
-}
-.dark-theme .leave-row {
-  background: #3b322a;
-  color: #debfa4;
-}
-.dark-theme .leave-row small {
-  color: #ab9888;
-}
-.dark-theme .route-pills span {
-  background: #3b322a;
-  border-color: #534438;
-  color: #e1cbb8;
-}
-
 .dark-theme .duration-chips button {
   background: #232b25;
   border-color: #3a443c;
@@ -311,96 +284,6 @@ body.dark-theme {
 .dark-theme .source-pill.rough {
   background: #3b2c15;
   color: #fbbf24;
-}
-
-.dark-theme .tracked-trolleys-box {
-  background: #1e2420;
-  border-color: #353d37;
-}
-.dark-theme .tracked-trolley-chip {
-  background: #252c27;
-  border-color: #38423b;
-}
-.dark-theme .trolley-badge {
-  color: #e7e9e4;
-}
-.dark-theme .trolley-online-count {
-  background: rgba(52, 211, 153, 0.15);
-  color: #34d399;
-}
-.dark-theme .trolley-marker-info {
-  color: #d1d5db;
-}
-.dark-theme .trolley-closest-info {
-  color: #93c5fd;
-}
-.dark-theme .commute-live-telemetry {
-  background: #1c221e;
-}
-.dark-theme .telemetry-val {
-  color: #e7e9e4;
-}
-.dark-theme .commute-closest-vehicle-bar {
-  background: rgba(147, 197, 253, 0.08);
-  color: #93c5fd;
-}
-.dark-theme .commute-closest-vehicle-bar b {
-  color: #bfdbfe;
-}
-.dark-theme .vehicle-fleet-num {
-  background: rgba(255, 255, 255, 0.06);
-  color: #9ca3af;
-}
-
-/* Stage 3: Transit Mini-Map Dark Overrides */
-.dark-theme .transit-minimap-wrapper {
-  background: #1e2420;
-  border-color: #353d37;
-  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.35);
-}
-
-.dark-theme .transit-map-canvas {
-  background: #161b18;
-}
-
-.dark-theme .map-filter-chip {
-  background: rgba(30, 36, 32, 0.92);
-  color: #d1d5db;
-  border-color: rgba(255, 255, 255, 0.08);
-  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.25);
-}
-
-.dark-theme .map-filter-chip:hover {
-  background: #28312b;
-  color: #ffffff;
-}
-
-.dark-theme .map-filter-chip.active {
-  background: #758a78;
-  color: #ffffff;
-  border-color: #758a78;
-}
-
-.dark-theme .map-hud-btn {
-  background: rgba(30, 36, 32, 0.92);
-  color: #d1d5db;
-  border-color: rgba(255, 255, 255, 0.08);
-  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.25);
-}
-
-.dark-theme .map-hud-btn:hover {
-  background: #28312b;
-  color: #ffffff;
-}
-
-.dark-theme .map-bottom-ribbon {
-  background: rgba(22, 27, 24, 0.94);
-  border-top-color: #2e3730;
-  color: #9ca3af;
-}
-
-.dark-theme .ribbon-gps-warn {
-  color: #6b7280;
 }
 
 .dark-theme .map-trolley-popup .popup-body {
@@ -587,21 +470,6 @@ body.dark-theme {
 .dark-theme .active-route-close-btn:hover {
   background: rgba(239, 68, 68, 0.2);
   color: #ef4444;
-}
-
-.dark-theme .minimap-active-route-strip {
-  background: rgba(22, 27, 24, 0.95);
-  border-color: #2e3730;
-  box-shadow: 0 3px 10px rgba(0, 0, 0, 0.3);
-}
-
-.dark-theme .route-strip-count {
-  color: #d1d5db;
-}
-
-.dark-theme .route-strip-close {
-  background: rgba(255, 255, 255, 0.08);
-  color: #9ca3af;
 }
 
 .dark-theme .active-route-row-badge {

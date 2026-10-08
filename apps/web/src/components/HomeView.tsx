@@ -3,7 +3,6 @@ import {
   ArrowUpRight,
   Ban,
   Bell,
-  Bus,
   CalendarClock,
   ChevronLeft,
   ChevronRight,
@@ -12,29 +11,19 @@ import {
   Clock3,
   Coffee,
   Droplets,
-  Footprints,
   MapPin,
   Moon,
   RotateCcw,
-  RotateCw,
-  Settings2,
-  Sparkles,
   Sunrise,
   Utensils,
   Wind,
 } from 'lucide-react';
 import {
   ClassItem,
-  CommuteOption,
-  CommuteOptionResult,
-  DestinationType,
   RoutineResult,
-  TrackedTrolleySummary,
-  LiveTrackedVehicle,
   shortDays,
 } from '../lib/plan.js';
 import { dateParts, fmtDate, min, TZ } from '../lib/time.js';
-import { TransitMiniMap } from './TransitMiniMap.js';
 
 interface HomeViewProps {
   selected: Date;
@@ -47,7 +36,6 @@ interface HomeViewProps {
   daySchedule: { parity: string | null; classes: ClassItem[] };
   studyWeekLabel: string;
   settings: any;
-  transit: any;
   routine: RoutineResult | null;
   nowMinutes: number;
   dayTasks: any[];
@@ -58,9 +46,6 @@ interface HomeViewProps {
   vibrate: () => void;
   onOpenExceptionModal?: (item: ClassItem) => void;
   onDeleteException?: (id: string) => void;
-  commuteOptions?: CommuteOption[];
-  onOpenCommuteSettings?: () => void;
-  request?: (path: string, options?: any) => Promise<any>;
 }
 
 export function HomeView({
@@ -74,7 +59,6 @@ export function HomeView({
   daySchedule,
   studyWeekLabel,
   settings,
-  transit,
   routine,
   nowMinutes,
   dayTasks,
@@ -85,79 +69,12 @@ export function HomeView({
   vibrate,
   onOpenExceptionModal,
   onDeleteException,
-  commuteOptions,
-  onOpenCommuteSettings,
-  request,
 }: HomeViewProps) {
   const headerTime = new Intl.DateTimeFormat('ru-RU', {
     timeZone: TZ,
     hour: '2-digit',
     minute: '2-digit',
   }).format(new Date());
-
-  const targetCampus = daySchedule.classes.find((c) => !c.online);
-  const isSports = Boolean(
-    targetCampus &&
-      (targetCampus.destination === 'sports' ||
-        targetCampus.place.includes('Ismail') ||
-        targetCampus.title.includes('Физкультура'))
-  );
-  const campusDestination = targetCampus
-    ? isSports
-      ? 'Спорткомплекс (Ismail 1)'
-      : 'Центральный корпус USM'
-    : 'Сегодня очных пар нет';
-
-  const [commuteLive, setCommuteLive] = React.useState<{
-    options: CommuteOptionResult[];
-    trackedTrolleys?: TrackedTrolleySummary[];
-    liveVehicles?: LiveTrackedVehicle[];
-    liveStatus?: any;
-    updatedAt: number;
-  } | null>(null);
-  const [loadingCommute, setLoadingCommute] = React.useState(false);
-  const [secondsAgo, setSecondsAgo] = React.useState(0);
-
-  const fetchCommute = React.useCallback(async () => {
-    if (!request || !targetCampus) return;
-    setLoadingCommute(true);
-    try {
-      const destType = isSports ? 'sports' : 'university';
-      const res = await request(
-        `/api/transit/commute?destination=${destType}&time=${encodeURIComponent(targetCampus.start)}`
-      );
-      setCommuteLive({
-        options: res.options || [],
-        trackedTrolleys: res.trackedTrolleys || [],
-        liveVehicles: res.liveVehicles || [],
-        liveStatus: res.liveStatus,
-        updatedAt: Date.now(),
-      });
-      setSecondsAgo(0);
-    } catch {
-      // ignore
-    } finally {
-      setLoadingCommute(false);
-    }
-  }, [request, targetCampus, isSports]);
-
-  React.useEffect(() => {
-    fetchCommute();
-    // Auto-refresh real-time vehicles every 25 seconds
-    const interval = setInterval(() => {
-      fetchCommute();
-    }, 25000);
-    return () => clearInterval(interval);
-  }, [fetchCommute]);
-
-  React.useEffect(() => {
-    const t = setInterval(() => {
-      if (commuteLive?.updatedAt) {
-        setSecondsAgo(Math.floor((Date.now() - commuteLive.updatedAt) / 1000));
-      }
-    }, 5000);
-    return () => clearInterval(t);
-  }, [commuteLive?.updatedAt]);
 
   const addDays = (d: Date, n: number) => new Date(d.getTime() + n * 86400000);
 
@@ -434,212 +351,6 @@ export function HomeView({
       </section>
 
       <section className="bottom-grid">
-        <div className="widget journey">
-          <div className="widget-top">
-            <span className="icon-chip peach">
-              <Bus size={16} />
-            </span>
-            <span className="widget-label">ДОРОГА</span>
-            <span
-              className={`live-badge ${commuteLive?.liveStatus?.available || transit.available ? 'on' : ''}`}
-            >
-              <i />
-              {commuteLive?.liveStatus?.available || transit.available
-                ? `${commuteLive?.liveStatus?.vehicleCount ?? transit.liveVehicleCount ?? 0} онлайн`
-                : 'оценка'}
-            </span>
-          </div>
-          <p className="journey-target">{campusDestination}</p>
-
-          {targetCampus ? (
-            <div className="commute-options-container">
-              {commuteLive?.trackedTrolleys && commuteLive.trackedTrolleys.length > 0 && (
-                <div className="tracked-trolleys-box">
-                  <div className="tracked-trolleys-title">
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-                      <span className="live-pulse-dot" />
-                      <span>Троллейбусы на линии</span>
-                    </div>
-                    <button
-                      type="button"
-                      className="open-full-map-btn"
-                      onClick={() => navigate('map')}
-                    >
-                      Карта и спутник →
-                    </button>
-                  </div>
-                  <div className="tracked-trolleys-grid">
-                    {commuteLive.trackedTrolleys.map((t) => (
-                      <div key={t.route_short_name} className="tracked-trolley-chip">
-                        <div className="trolley-chip-top">
-                          <strong className="trolley-badge">№{t.route_short_name}</strong>
-                          <span className="trolley-online-count">
-                            {t.vehiclesOnLineCount} на рейсе
-                          </span>
-                        </div>
-                        <div className="trolley-chip-body">
-                          <span className="trolley-marker-info">
-                            📍 {t.nearbyVehiclesCount > 0 ? `${t.nearbyVehiclesCount} у метки` : 'нет у метки'}
-                          </span>
-                          {t.closestDistanceMeters != null ? (
-                            <span className="trolley-closest-info">
-                              {t.closestDistanceMeters} м (~{t.closestEtaMinutes} мин){t.closestVehicleLabel ? ` · борт ${t.closestVehicleLabel}` : ''}
-                            </span>
-                          ) : (
-                            <span className="trolley-closest-none">ожидание GPS</span>
-                          )}
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              )}
-
-              {/* Interactive Real-Time Transit Mini-Map */}
-              <TransitMiniMap
-                vehicles={commuteLive?.liveVehicles || []}
-                boardStop={
-                  commuteLive?.options?.[0]?.legs?.[0]?.boardStopName
-                    ? {
-                        stop_id: 101,
-                        stop_name: commuteLive.options[0].legs[0].boardStopName,
-                        stop_lat: 46.9825,
-                        stop_lon: 28.865,
-                      }
-                    : undefined
-                }
-                theme={settings.theme || 'light'}
-                onRefresh={fetchCommute}
-              />
-
-              {commuteLive?.options && commuteLive.options.length > 0 ? (
-                <div className={`commute-options-grid ${isSports ? 'single' : 'double'}`}>
-                  {commuteLive.options.map((opt) => (
-                    <div
-                      key={opt.id}
-                      className={`commute-card ${opt.isRecommended ? 'recommended' : ''} ${!opt.isConfigured ? 'unconfigured' : ''}`}
-                    >
-                      <div className="commute-card-head">
-                        <b>{opt.name}</b>
-                        {opt.isRecommended && <span className="rec-badge">Быстрее</span>}
-                      </div>
-
-                      {!opt.isConfigured ? (
-                        <div className="commute-unconfigured-content">
-                          <small>Остановки не подтверждены</small>
-                          {onOpenCommuteSettings && (
-                            <button
-                              type="button"
-                              className="commute-setup-btn"
-                              onClick={() => {
-                                vibrate();
-                                onOpenCommuteSettings();
-                              }}
-                            >
-                              <Settings2 size={13} /> Настрой дорогу
-                            </button>
-                          )}
-                        </div>
-                      ) : (
-                        <>
-                          <div className="commute-metric-row">
-                            <span className="metric-label">Выход из дома:</span>
-                            <b className="metric-value">
-                              {opt.leaveInMinutes <= 0
-                                ? 'сейчас'
-                                : `через ${opt.leaveInMinutes} мин`}
-                            </b>
-                          </div>
-
-                          <div className="commute-metric-row">
-                            <span className="metric-label">В пути:</span>
-                            <span className="metric-value">~{opt.totalDurationMinutes} мин</span>
-                          </div>
-
-                          <div className="commute-metric-row">
-                            <span className="metric-label">Прибудешь:</span>
-                            <span className="metric-value">около {opt.arrivalEstimated}</span>
-                          </div>
-
-                          <div className="commute-live-telemetry">
-                            <div className="telemetry-item">
-                              <span className="telemetry-label">На рейсе:</span>
-                              <strong className="telemetry-val">
-                                {opt.vehiclesOnLineCount ?? 0} машин
-                              </strong>
-                            </div>
-                            <div className="telemetry-item">
-                              <span className="telemetry-label">У метки:</span>
-                              <strong className="telemetry-val">
-                                {opt.nearbyVehiclesCount ?? 0} шт.
-                              </strong>
-                            </div>
-                          </div>
-
-                          {opt.closestVehicleDistanceMeters != null && (
-                            <div className="commute-closest-vehicle-bar">
-                              <span>Ближайший: <b>{opt.closestVehicleDistanceMeters} м</b> (~{opt.closestVehicleEtaMinutes} мин)</span>
-                              {opt.closestVehicleLabel && (
-                                <span className="vehicle-fleet-num">борт {opt.closestVehicleLabel}</span>
-                              )}
-                            </div>
-                          )}
-
-                          <div className="commute-card-footer">
-                            <span className={`source-pill ${opt.source}`}>
-                              {opt.sourceLabel}
-                            </span>
-                            {opt.legs && opt.legs.length > 0 && (
-                              <span className="legs-summary">
-                                {opt.legs
-                                  .map((l) =>
-                                    l.mode === 'any_trolleybus'
-                                      ? `пересадка (${l.chosenRouteName})`
-                                      : `№${l.chosenRouteName}`
-                                  )
-                                  .join(' → ')}
-                              </span>
-                            )}
-                          </div>
-                        </>
-                      )}
-                    </div>
-                  ))}
-                </div>
-              ) : (
-                <div className="commute-loading-box">
-                  <small>Оцениваем маршруты и позиции RTEC/PUA…</small>
-                </div>
-              )}
-
-              <div className="commute-refresh-bar">
-                <span className="refresh-time">
-                  {secondsAgo < 5 ? 'обновлено только что' : `обновлено ${secondsAgo} с назад`}
-                </span>
-                <button
-                  type="button"
-                  className={`refresh-action-btn ${loadingCommute ? 'spinning' : ''}`}
-                  onClick={() => {
-                    vibrate();
-                    fetchCommute();
-                  }}
-                  aria-label="Обновить позиции"
-                >
-                  <RotateCw size={12} /> Обновить
-                </button>
-              </div>
-            </div>
-          ) : (
-            <div className="journey-line">
-              <Footprints size={14} />
-              <i />
-              <Bus size={15} />
-              <i />
-              <MapPin size={14} />
-            </div>
-          )}
-        </div>
-
         <div className="widget sleep">
           <div className="widget-top">
             <span className="icon-chip lavender">

@@ -12,6 +12,7 @@ import {
   Compass,
   Navigation,
   CheckCircle2,
+  Settings2,
 } from 'lucide-react';
 import { LiveTrackedVehicle, TransitStop, CommuteOption } from '../lib/plan.js';
 import { haversineDistanceMeters } from '@usm/shared';
@@ -23,6 +24,7 @@ interface TransitViewProps {
   settings?: any;
   onRefresh?: () => void;
   request?: (path: string, options?: any) => Promise<any>;
+  onOpenCommuteSettings?: () => void;
 }
 
 const ROUTE_COLORS: Record<string, string> = {
@@ -43,6 +45,7 @@ export const TransitView: React.FC<TransitViewProps> = ({
   settings = {},
   onRefresh,
   request,
+  onOpenCommuteSettings,
 }) => {
   const containerRef = useRef<HTMLDivElement>(null);
   const mapInstanceRef = useRef<L.Map | null>(null);
@@ -651,8 +654,19 @@ export const TransitView: React.FC<TransitViewProps> = ({
             {stopsList.length > 0 && <small>{stopsList.length}</small>}
           </button>
 
-          {/* Actions: Locate GPS & Refresh */}
+          {/* Actions: Commute settings, Locate GPS & Refresh */}
           <div className="map-hud-actions-cluster">
+            {onOpenCommuteSettings && (
+              <button
+                type="button"
+                className="map-action-round-btn"
+                onClick={onOpenCommuteSettings}
+                title="Настройка дороги"
+                aria-label="Настройка дороги"
+              >
+                <Settings2 size={16} />
+              </button>
+            )}
             <button
               type="button"
               className="map-action-round-btn"
