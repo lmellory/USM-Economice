@@ -16,6 +16,7 @@ import {
   Footprints,
   Clock,
   ArrowRight,
+  ArrowDownUp,
 } from 'lucide-react';
 import { LiveTrackedVehicle, TransitStop, CommuteOption } from '../lib/plan.js';
 import {
@@ -994,6 +995,52 @@ export const TransitView: React.FC<TransitViewProps> = ({
             <div className="trip-planner-content">
               {/* Point Selection Box */}
               <div className="trip-points-box">
+                {/* Quick Presets */}
+                <div className="trip-quick-presets">
+                  <button
+                    type="button"
+                    className="trip-preset-chip"
+                    onClick={() => {
+                      if (userLocation) {
+                        setPointA({
+                          lat: userLocation.lat,
+                          lon: userLocation.lon,
+                          name: 'Моё местоположение',
+                        });
+                      }
+                      setPointB({
+                        lat: 47.0186,
+                        lon: 28.8242,
+                        name: 'USM (Центральный корпус)',
+                      });
+                      setPickingPoint(null);
+                    }}
+                  >
+                    🏛️ На пары в USM
+                  </button>
+                  <button
+                    type="button"
+                    className="trip-preset-chip"
+                    onClick={() => {
+                      setPointA({
+                        lat: 47.0186,
+                        lon: 28.8242,
+                        name: 'USM (Центральный корпус)',
+                      });
+                      if (userLocation) {
+                        setPointB({
+                          lat: userLocation.lat,
+                          lon: userLocation.lon,
+                          name: 'Моё местоположение',
+                        });
+                      }
+                      setPickingPoint(null);
+                    }}
+                  >
+                    🏠 С пар домой
+                  </button>
+                </div>
+
                 {/* Point A */}
                 <div
                   className={`trip-point-row ${pickingPoint === 'A' ? 'active' : ''}`}
@@ -1014,8 +1061,8 @@ export const TransitView: React.FC<TransitViewProps> = ({
                           ? `🚏 ${nearestStopA.stop.stop_name} (${Math.round(
                               nearestStopA.distanceMeters
                             )} м)`
-                          : 'Рядом нет остановок (в радиусе 400 м)'
-                        : 'Нажмите, чтобы выбрать на карте'}
+                          : pointA.name || 'Точка на карте'
+                        : 'Выбери откуда ехать'}
                     </div>
                   </div>
                   <div className="trip-point-actions" onClick={(e) => e.stopPropagation()}>
@@ -1037,11 +1084,54 @@ export const TransitView: React.FC<TransitViewProps> = ({
                     <button
                       type="button"
                       className="trip-point-action-btn"
+                      onClick={() =>
+                        setPointA({
+                          lat: 47.0186,
+                          lon: 28.8242,
+                          name: 'USM (Центральный корпус)',
+                        })
+                      }
+                    >
+                      🎓 USM
+                    </button>
+                    <button
+                      type="button"
+                      className="trip-point-action-btn"
+                      onClick={() =>
+                        setPointA({
+                          lat: 47.0125,
+                          lon: 28.8471,
+                          name: 'Спорткомплекс USM',
+                        })
+                      }
+                    >
+                      🏅 Спорт
+                    </button>
+                    <button
+                      type="button"
+                      className="trip-point-action-btn"
                       onClick={() => setPickingPoint(pickingPoint === 'A' ? null : 'A')}
                     >
-                      {pickingPoint === 'A' ? 'Клик на карту…' : 'Выбрать'}
+                      {pickingPoint === 'A' ? 'Клик…' : 'Карта'}
                     </button>
                   </div>
+                </div>
+
+                {/* Swap A ⇄ B Button */}
+                <div className="trip-swap-row">
+                  <button
+                    type="button"
+                    className="trip-swap-btn"
+                    title="Поменять точки местами (Реверс)"
+                    aria-label="Поменять местами точки маршрута"
+                    onClick={() => {
+                      setPointA(pointB);
+                      setPointB(pointA);
+                      setPickingPoint(null);
+                    }}
+                  >
+                    <ArrowDownUp size={13} />
+                  </button>
                 </div>
 
                 {/* Point B */}
@@ -1064,11 +1154,26 @@ export const TransitView: React.FC<TransitViewProps> = ({
                           ? `🚏 ${nearestStopB.stop.stop_name} (${Math.round(
                               nearestStopB.distanceMeters
                             )} м)`
-                          : 'Рядом нет остановок (в радиусе 400 м)'
-                        : 'Нажмите, чтобы выбрать на карте'}
+                          : pointB.name || 'Точка на карте'
+                        : 'Выбери куда ехать'}
                     </div>
                   </div>
                   <div className="trip-point-actions" onClick={(e) => e.stopPropagation()}>
+                    {userLocation && (
+                      <button
+                        type="button"
+                        className="trip-point-action-btn"
+                        onClick={() =>
+                          setPointB({
+                            lat: userLocation.lat,
+                            lon: userLocation.lon,
+                            name: 'Моё местоположение',
+                          })
+                        }
+                      >
+                        📍 Где я
+                      </button>
+                    )}
                     <button
                       type="button"
                       className="trip-point-action-btn"
@@ -1100,7 +1205,7 @@ export const TransitView: React.FC<TransitViewProps> = ({
                       className="trip-point-action-btn"
                       onClick={() => setPickingPoint(pickingPoint === 'B' ? null : 'B')}
                     >
-                      {pickingPoint === 'B' ? 'Клик на карту…' : 'Выбрать'}
+                      {pickingPoint === 'B' ? 'Клик…' : 'Карта'}
                     </button>
                   </div>
                 </div>

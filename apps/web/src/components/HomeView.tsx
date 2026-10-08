@@ -76,6 +76,34 @@ export function HomeView({
     minute: '2-digit',
   }).format(new Date());
 
+  const currentHour = Number(
+    new Intl.DateTimeFormat('en-GB', {
+      timeZone: TZ,
+      hour: '2-digit',
+      hourCycle: 'h23',
+    }).format(new Date())
+  );
+
+  const tgFirstName =
+    typeof window !== 'undefined'
+      ? window.Telegram?.WebApp?.initDataUnsafe?.user?.first_name?.trim()
+      : undefined;
+
+  let timeOfDayGreeting = 'Доброе утро';
+  if (currentHour >= 5 && currentHour < 12) {
+    timeOfDayGreeting = 'Доброе утро';
+  } else if (currentHour >= 12 && currentHour < 18) {
+    timeOfDayGreeting = 'Добрый день';
+  } else if (currentHour >= 18 && currentHour < 23) {
+    timeOfDayGreeting = 'Добрый вечер';
+  } else {
+    timeOfDayGreeting = 'Доброй ночи';
+  }
+
+  const personalizedGreeting = tgFirstName
+    ? `${timeOfDayGreeting}, ${tgFirstName}`
+    : timeOfDayGreeting;
+
   const addDays = (d: Date, n: number) => new Date(d.getTime() + n * 86400000);
 
   return (
@@ -87,7 +115,7 @@ export function HomeView({
             {fmtDate(todayKey, { day: 'numeric', month: 'long', year: 'numeric' })}
           </div>
           <h1>
-            Твой день,
+            {personalizedGreeting},
             <br />
             <em>без спешки.</em>
           </h1>
@@ -188,12 +216,18 @@ export function HomeView({
       </div>
 
       {dayTasks.length > 0 && (
-        <section className="deadline-banner">
+        <section
+          className="deadline-banner"
+          onClick={() => {
+            vibrate();
+            navigate('hw');
+          }}
+        >
           <div className="deadline-icon">
-            <Bell size={17} />
+            <Bell size={15} />
           </div>
-          <div>
-            <strong>Сдать сегодня</strong>
+          <div className="deadline-body">
+            <strong>Сдать сегодня ({dayTasks.length})</strong>
             <p>
               {dayTasks
                 .slice(0, 2)
@@ -202,25 +236,18 @@ export function HomeView({
               {dayTasks.length > 2 ? ` и ещё ${dayTasks.length - 2}` : ''}
             </p>
           </div>
-          <button type="button" onClick={() => navigate('hw')} aria-label="Открыть задания">
-            <ChevronRight size={18} />
-          </button>
+          <ChevronRight size={16} className="deadline-arrow" />
         </section>
       )}
 
       {routine && routine.freeMinutes > 0 && (
         <section className="free-time-banner">
           <div className="free-time-badge-icon">
-            <Coffee size={18} />
+            <Coffee size={15} />
           </div>
           <div className="free-time-body">
-            <div className="free-time-header">
-              <strong>Свободное время: {routine.freeTimeFormatted}</strong>
-              <span className="free-time-span">до {routine.leave ? `выхода в ${routine.leave}` : `пары в ${routine.first.start}`}</span>
-            </div>
-            <p>
-              После душа, завтрака и сборов можно спокойно чиллить и ничего не делать! ✨
-            </p>
+            <strong>Свободно {routine.freeTimeFormatted}</strong>
+            <span>до {routine.leave ? `выхода в ${routine.leave}` : `пары в ${routine.first.start}`}</span>
           </div>
         </section>
       )}
@@ -364,33 +391,24 @@ export function HomeView({
               <p>
                 Сон: отбой в {routine.bed} · цель {settings.sleep_hours || 8} ч
               </p>
-              <div className="mini-plan">
-                <span>
-                  <Droplets size={13} /> Душ и голова {routine.wash}–{routine.washEnd} ({settings.wash_minutes || 20} мин)
-                </span>
-                <span>
-                  <Wind size={13} /> Сушка волос {routine.hairDry}–{routine.hairDryEnd} ({settings.hair_dry_minutes || 5} мин)
-                </span>
-                <span>
-                  <Utensils size={13} /> Завтрак {routine.breakfast}–{routine.breakfastEnd} ({settings.breakfast_minutes || 30} мин)
-                </span>
-                <span>
-                  <Clock3 size={13} /> Сборы {routine.getready}–{routine.getreadyEnd} ({settings.get_ready_minutes || 10} мин)
-                </span>
-                {routine.freeMinutes > 0 && (
-                  <span className="mini-plan-free">
-                    <Coffee size={13} /> Свободно {routine.readyAt}–{routine.leave || routine.first.start} ({routine.freeTimeFormatted})
-                  </span>
-                )}
+              <div className="morning-timeline-strip">
+                <div className="morning-step">
+                  <Droplets size={12} />
+                  <span>Душ {routine.wash}</span>
+                </div>
+                <div className="morning-step">
+                  <Utensils size={12} />
+                  <span>Завтрак {routine.breakfast}</span>
+                </div>
+                <div className="morning-step">
+                  <Clock3 size={12} />
+                  <span>Сборы {routine.getready}</span>
+                </div>
                 {routine.leave && (
-                  <span>
-                    <ArrowUpRight size={13} /> Выйти {routine.leave}
-                  </span>
-                )}
-                {routine.arrive && (
-                  <span>
-                    <MapPin size={13} /> Прибыть {routine.arrive}
-                  </span>
+                  <div className="morning-step accent">
+                    <ArrowUpRight size={12} />
+                    <span>Выйти {routine.leave}</span>
+                  </div>
                 )}
               </div>
               {routine.warning && (

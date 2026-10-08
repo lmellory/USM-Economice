@@ -186,7 +186,7 @@ button {
   display: flex;
   justify-content: space-between;
   align-items: flex-end;
-  padding: 20px 0 21px;
+  padding: 12px 0 10px;
 }
 .eyebrow {
   display: block;
@@ -199,9 +199,9 @@ button {
 .greeting h1,
 .hw-header h1,
 .settings-head h1 {
-  font: 400 38px/1.06 var(--serif);
-  letter-spacing: -0.045em;
-  margin: 9px 0 0;
+  font: 400 30px/1.12 var(--serif);
+  letter-spacing: -0.04em;
+  margin: 6px 0 0;
   color: var(--text);
 }
 .greeting h1 em {
@@ -355,53 +355,110 @@ button {
   display: flex;
   justify-content: space-between;
   align-items: end;
-  margin: 23px 2px 11px;
+  margin: 14px 2px 8px;
 }
 .section-heading h2 {
-  font: 400 24px var(--serif);
+  font: 400 21px var(--serif);
   letter-spacing: -0.025em;
-  margin: 3px 0 0;
+  margin: 2px 0 0;
 }
 .today-link {
   display: inline-flex;
   align-items: center;
-  color: #738677;
+  color: var(--accent);
   font-size: 11px;
   font-weight: 600;
-  padding: 6px 0;
+  padding: 4px 0;
   gap: 2px;
 }
 .deadline-banner {
   border-radius: 12px;
-  background: #f3e9de;
+  background: var(--surface);
+  border: 1px solid var(--border);
   display: flex;
   align-items: center;
   gap: 10px;
-  padding: 11px 12px;
-  margin: 0 0 10px;
+  padding: 8px 12px;
+  margin: 0 0 8px;
+  box-shadow: var(--card-shadow);
+  cursor: pointer;
+  transition: all 0.15s ease;
+  color: var(--text);
+}
+.deadline-banner:hover {
+  border-color: var(--accent);
 }
 .deadline-icon {
-  width: 29px;
-  height: 29px;
+  width: 28px;
+  height: 28px;
   display: grid;
   place-items: center;
-  border-radius: 10px;
-  background: #f7f1e8;
-  color: #b67e58;
+  border-radius: 8px;
+  background: rgba(245, 158, 11, 0.12);
+  color: #f59e0b;
+  flex-shrink: 0;
 }
-.deadline-banner div:nth-child(2) {
+.deadline-body {
   flex: 1;
+  min-width: 0;
 }
-.deadline-banner strong {
-  font-size: 11px;
+.deadline-body strong {
+  font-size: 11.5px;
+  font-weight: 700;
+  color: var(--text);
+  display: block;
 }
-.deadline-banner p {
-  margin: 2px 0 0;
-  font-size: 10px;
-  color: #8d7c6f;
+.deadline-body p {
+  margin: 1px 0 0;
+  font-size: 10.5px;
+  color: var(--muted);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
-.deadline-banner > button {
-  color: #a88871;
+.deadline-arrow {
+  color: var(--muted);
+  flex-shrink: 0;
+}
+.free-time-banner {
+  border-radius: 12px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 12px;
+  margin: 0 0 8px;
+  box-shadow: var(--card-shadow);
+  color: var(--text);
+}
+.free-time-badge-icon {
+  width: 28px;
+  height: 28px;
+  display: grid;
+  place-items: center;
+  border-radius: 8px;
+  background: rgba(16, 185, 129, 0.12);
+  color: #10b981;
+  flex-shrink: 0;
+}
+.free-time-body {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex: 1;
+  gap: 8px;
+  min-width: 0;
+}
+.free-time-body strong {
+  font-size: 11.5px;
+  font-weight: 700;
+  color: var(--text);
+}
+.free-time-body span {
+  font-size: 10.5px;
+  color: var(--muted);
+  white-space: nowrap;
 }
 .classes {
   display: flex;
@@ -552,72 +609,83 @@ button {
   overflow: hidden;
 }
 .sleep {
-  background: #ececf0;
+  background: var(--card-bg);
+  border: 1px solid var(--border);
+  box-shadow: var(--card-shadow);
+  border-radius: 14px;
 }
 .widget-top {
   display: flex;
   align-items: center;
   gap: 6px;
-  margin-bottom: 11px;
+  margin-bottom: 8px;
 }
 .icon-chip {
-  width: 26px;
-  height: 26px;
-  border-radius: 9px;
+  width: 24px;
+  height: 24px;
+  border-radius: 8px;
   display: grid;
   place-items: center;
 }
 .lavender {
-  background: #f4f3f6;
-  color: #89879a;
+  background: rgba(137, 135, 154, 0.12);
+  color: var(--accent);
 }
 .widget-label {
   font-size: 8px;
   letter-spacing: 0.14em;
   font-weight: 700;
-  color: #999891;
+  color: var(--muted);
 }
 .approx {
   margin-left: auto;
-  color: #bd9679;
-  font-size: 16px;
+  color: var(--muted);
+  font-size: 14px;
 }
 .widget > b {
-  font: 500 16px var(--serif);
+  font: 500 15px var(--serif);
   display: block;
   letter-spacing: -0.02em;
+  color: var(--text);
 }
 .widget > p {
-  font-size: 9px;
-  color: #96928a;
-  margin: 4px 0;
+  font-size: 9.5px;
+  color: var(--muted);
+  margin: 3px 0 0;
 }
-.sleep {
-  background: #ecebf0;
-}
-.mini-plan {
+.morning-timeline-strip {
   display: flex;
-  flex-direction: column;
-  gap: 5px;
-  margin-top: 10px;
-  color: #818392;
-  font-size: 9px;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-top: 8px;
 }
-.mini-plan span {
-  display: flex;
+.morning-step {
+  display: inline-flex;
   align-items: center;
   gap: 4px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  padding: 4px 7px;
+  border-radius: 7px;
+  font-size: 10.5px;
+  font-weight: 600;
+  color: var(--text);
+}
+.morning-step.accent {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: #fff;
 }
 .warn-text {
   display: flex;
   align-items: center;
   gap: 3px;
-  color: #b9855e;
-  font-size: 8px;
-  margin-top: 8px;
+  color: #d97706;
+  font-size: 9px;
+  margin-top: 6px;
 }
 .next-due {
-  margin-top: 25px;
+  margin-top: 14px;
 }
 .compact {
   margin: 0 2px 10px;
@@ -2955,6 +3023,62 @@ button {
   padding: 8px;
   border-radius: 12px;
   border: 1px solid var(--border);
+}
+
+.trip-quick-presets {
+  display: flex;
+  gap: 6px;
+  margin-bottom: 2px;
+}
+
+.trip-preset-chip {
+  flex: 1;
+  background: var(--card-bg);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 6px 8px;
+  font: 700 11px/1 'Manrope', sans-serif;
+  color: var(--text);
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 5px;
+  transition: all 0.15s ease;
+}
+
+.trip-preset-chip:hover {
+  background: var(--surface);
+  border-color: var(--accent);
+}
+
+.trip-swap-row {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  margin: -2px 0;
+  position: relative;
+  z-index: 2;
+}
+
+.trip-swap-btn {
+  background: var(--card-bg);
+  border: 1px solid var(--border);
+  color: var(--accent);
+  width: 26px;
+  height: 26px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.08);
+}
+
+.trip-swap-btn:hover {
+  transform: scale(1.1);
+  border-color: var(--accent);
 }
 
 .trip-point-row {
