@@ -27,14 +27,17 @@ async function apiRequest(request: Request, env: Env, path: string): Promise<Res
     }
     let t: any = null;
     let routesCount = 0;
-    let stopsCount = 0;
+    let stopsPresent = false;
     let d1Status = 'ok';
     try {
       t = await env.DB.prepare('SELECT * FROM transit_state WHERE id=1').first<any>();
       const routes = await env.DB.prepare('SELECT route_id, route_short_name, route_type FROM tranzy_routes LIMIT 50').all<any>();
       routesCount = routes.results?.length ?? 0;
-      const stopsRow = await env.DB.prepare('SELECT count(*) as cnt FROM tranzy_stops').first<any>();
-      stopsCount = stopsRow?.cnt ?? 0;
+      const stopsRow = await env.DB.prepare('SELECT 1 FROM tranzy_stops LIMIT 1').all<any>();
+      if (stopsRow.meta?.rows_read !== undefined) {
+        console.log('[D1_AUDIT_ROWS_READ] health stopsPresent rows_read:', stopsRow.meta.rows_read);
+      }
+      stopsPresent = (stopsRow.results?.length ?? 0) > 0;
     } catch (d1Err: any) {
       d1Status = d1Err?.message || 'd1_quota_exceeded';
     }
@@ -45,7 +48,7 @@ async function apiRequest(request: Request, env: Env, path: string): Promise<Res
       d1Status,
       transit: t,
       routesCount,
-      stopsCount,
+      stopsPresent,
       routes: [],
     });
   }
