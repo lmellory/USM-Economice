@@ -1,6 +1,6 @@
-import React, { useEffect, useMemo, useState, Suspense } from 'react';
+import React, { useEffect, useMemo, useState, useRef, Suspense } from 'react';
 import { createRoot } from 'react-dom/client';
-import { BookOpen, CalendarDays, CircleAlert, GraduationCap, Map as MapIcon, Settings, X } from 'lucide-react';
+import { BookOpen, CalendarDays, CircleAlert, GraduationCap, Map as MapIcon, X } from 'lucide-react';
 import './style.css';
 import './telegram.css';
 import './dark.css';
@@ -88,6 +88,14 @@ export function App() {
   const [error, setError] = useState('');
   const [tab, setTab] = useState('На сегодня');
   const [nowMinutes, setNowMinutes] = useState(getNowMinutes);
+  const previousViewRef = useRef<'home' | 'schedule' | 'hw' | 'map'>('home');
+
+  const tgUser = tg?.initDataUnsafe?.user;
+  const userPhotoUrl = tgUser?.photo_url;
+  const userDisplayName = tgUser?.first_name
+    ? `${tgUser.first_name}${tgUser.last_name ? ` ${tgUser.last_name}` : ''}`
+    : 'Студент USM';
+  const avatarLetter = (tgUser?.first_name?.trim()[0] || 'А').toUpperCase();
 
   useEffect(() => {
     const timer = setInterval(() => setNowMinutes(getNowMinutes()), 15000);
@@ -197,7 +205,9 @@ export function App() {
   useEffect(() => {
     const back = tg?.BackButton;
     if (!back) return;
+
     const handleBack = () => {
+      vibrate();
       if (modal) {
         setModal(false);
         setEditing(null);
@@ -207,18 +217,25 @@ export function App() {
       } else if (exceptionModal) {
         setExceptionModal(false);
         setSelectedExceptionClass(null);
-      } else {
-        setView('home');
+      } else if (commuteModal) {
+        setCommuteModal(false);
+      } else if (view === 'settings') {
+        setView(previousViewRef.current || 'home');
       }
     };
 
-    const hasOpenModal = modal || classModal || exceptionModal;
-    if (view === 'home' && !hasOpenModal) back.hide();
-    else back.show();
+    const hasOpenModal = modal || classModal || exceptionModal || commuteModal;
+    const shouldShow = view === 'settings' || hasOpenModal;
+
+    if (shouldShow) {
+      back.show();
+    } else {
+      back.hide();
+    }
 
     back.onClick(handleBack);
     return () => back.offClick(handleBack);
-  }, [view, modal, classModal, exceptionModal]);
+  }, [view, modal, classModal, exceptionModal, commuteModal]);
 
   const scheduleFor = (d: Date) => {
     const p = dateParts(d);
@@ -391,9 +408,13 @@ export function App() {
     vibrate();
   };
 
-  const navigate = (v: any) => {
-    setView(v);
+  const navigate = (v: 'home' | 'schedule' | 'hw' | 'map' | 'settings') => {
     vibrate();
+    if (view !== 'settings') {
+      previousViewRef.current = view;
+    }
+    setView(v);
+    window.scrollTo({ top: 0, behavior: 'smooth' });
   };
 
   const saveCommuteOption = async (optionId: string, payload: Partial<CommuteOption>) => {
@@ -421,9 +442,24 @@ export function App() {
           type="button"
           className="avatar"
           onClick={() => navigate('settings')}
-          aria-label="Настройки"
+          aria-label="Настройки профиля"
+          title={userDisplayName}
         >
-          А
+          {userPhotoUrl ? (
+            <>
+              <img
+                src={userPhotoUrl}
+                alt={userDisplayName}
+                className="avatar-img"
+                onError={(e) => {
+                  e.currentTarget.style.display = 'none';
+                }}
+              />
+              <span className="avatar-fallback">{avatarLetter}</span>
+            </>
+          ) : (
+            <span className="avatar-fallback">{avatarLetter}</span>
+          )}
         </button>
       </header>
 
@@ -432,7 +468,10 @@ export function App() {
           settings={settings}
           transit={transit}
           save={saveSettings}
-          onBack={() => navigate('home')}
+          onBack={() => {
+            vibrate();
+            setView(previousViewRef.current || 'home');
+          }}
           onOpenCommuteSettings={() => setCommuteModal(true)}
         />
       ) : view === 'schedule' ? (
@@ -537,14 +576,6 @@ export function App() {
         >
           <MapIcon size={20} />
           <span>Карта</span>
-        </button>
-        <button
-          type="button"
-          className={view === 'settings' ? 'active' : ''}
-          onClick={() => navigate('settings')}
-        >
-          <Settings size={20} />
-          <span>Настройки</span>
         </button>
       </nav>
 

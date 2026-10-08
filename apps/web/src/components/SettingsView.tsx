@@ -67,6 +67,15 @@ export function SettingsView({
     </label>
   );
 
+  const tgUser =
+    typeof window !== 'undefined' ? window.Telegram?.WebApp?.initDataUnsafe?.user : undefined;
+  const userPhotoUrl = tgUser?.photo_url;
+  const userFullName = tgUser?.first_name
+    ? `${tgUser.first_name}${tgUser.last_name ? ` ${tgUser.last_name}` : ''}`
+    : 'Студент USM';
+  const userHandle = tgUser?.username ? `@${tgUser.username}` : null;
+  const avatarLetter = (tgUser?.first_name?.trim()[0] || 'А').toUpperCase();
+
   return (
     <>
       <div className="settings-head">
@@ -76,6 +85,26 @@ export function SettingsView({
         <span className="eyebrow">ЛИЧНОЕ</span>
         <h1>Настройки</h1>
         <p>Твои данные видны только тебе.</p>
+      </div>
+
+      <div className="user-profile-badge">
+        <div className="user-profile-avatar">
+          {userPhotoUrl ? (
+            <img
+              src={userPhotoUrl}
+              alt={userFullName}
+              className="avatar-img"
+              onError={(e) => {
+                e.currentTarget.style.display = 'none';
+              }}
+            />
+          ) : null}
+          <span className="avatar-fallback">{avatarLetter}</span>
+        </div>
+        <div className="user-profile-info">
+          <strong>{userFullName}</strong>
+          <span>{userHandle || 'Telegram профиль'}</span>
+        </div>
       </div>
 
       <section className="setting-card">
