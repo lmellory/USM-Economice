@@ -20,21 +20,33 @@ async function apiRequest(request: Request, env: Env, path: string): Promise<Res
   if (path === '/health') {
     const url = new URL(request.url);
     if (url.searchParams.has('refresh')) {
-      await saveTransit(env);
+      try { await saveTransit(env); } catch {}
     }
     if (url.searchParams.has('refresh_stops')) {
-      await syncTranzyStops(env);
+      try { await syncTranzyStops(env); } catch {}
     }
-    const t = await env.DB.prepare('SELECT * FROM transit_state WHERE id=1').first<any>();
-    const routes = await env.DB.prepare('SELECT route_id, route_short_name, route_type FROM tranzy_routes LIMIT 50').all<any>();
-    const stopsRow = await env.DB.prepare('SELECT count(*) as cnt FROM tranzy_stops').first<any>();
+    let t: any = null;
+    let routesCount = 0;
+    let stopsCount = 0;
+    let d1Status = 'ok';
+    try {
+      t = await env.DB.prepare('SELECT * FROM transit_state WHERE id=1').first<any>();
+      const routes = await env.DB.prepare('SELECT route_id, route_short_name, route_type FROM tranzy_routes LIMIT 50').all<any>();
+      routesCount = routes.results?.length ?? 0;
+      const stopsRow = await env.DB.prepare('SELECT count(*) as cnt FROM tranzy_stops').first<any>();
+      stopsCount = stopsRow?.cnt ?? 0;
+    } catch (d1Err: any) {
+      d1Status = d1Err?.message || 'd1_quota_exceeded';
+    }
+
     return json({
       ok: true,
       service: 'usm-life-worker',
+      d1Status,
       transit: t,
-      routesCount: routes.results?.length ?? 0,
-      stopsCount: stopsRow?.cnt ?? 0,
-      routes: routes.results ?? [],
+      routesCount,
+      stopsCount,
+      routes: [],
     });
   }
 
