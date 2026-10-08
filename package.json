@@ -15,7 +15,8 @@
     "format:check": "prettier --check .",
     "deploy:cloudflare": "npm run build -w @usm/web && npm run deploy -w @usm/worker",
     "migrate:cloudflare": "npm run migrate -w @usm/worker",
-    "migrate:turso": "npm run migrate:turso -w @usm/worker"
+    "migrate:turso": "npm run migrate:turso -w @usm/worker",
+    "import:turso": "npm run import:turso -w @usm/worker"
   },
   "devDependencies": {
     "prettier": "^3.5.3",
