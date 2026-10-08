@@ -16,6 +16,7 @@ import { getUserCommuteOptions, handleTransitRoutes } from './commute.js';
 import { handleTripPlan } from './trip-plan.js';
 import { Env } from './types.js';
 import { handleWebhook } from './webhook.js';
+import { handleAdminBroadcast, handleAdminStats, isUserAdmin } from './admin.js';
 
 async function apiRequest(request: Request, env: Env, path: string): Promise<Response> {
   const db = createDb(env);
@@ -169,7 +170,16 @@ async function apiRequest(request: Request, env: Env, path: string): Promise<Res
       transit: t,
       commuteOptions,
       mapsBrowserKey: env.GOOGLE_MAPS_BROWSER_KEY || '',
+      isAdmin: isUserAdmin(env, String(user.id)),
     });
+  }
+
+  if (path === '/api/admin/stats' && request.method === 'GET') {
+    return handleAdminStats(request, env, String(user.id));
+  }
+
+  if (path === '/api/admin/broadcast' && request.method === 'POST') {
+    return handleAdminBroadcast(request, env, String(user.id));
   }
 
   if (path === '/api/trip/plan' && request.method === 'GET') {

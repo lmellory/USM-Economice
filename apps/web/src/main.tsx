@@ -27,6 +27,7 @@ import { HomeworkModal } from './components/HomeworkModal.js';
 import { HomeworkView } from './components/HomeworkView.js';
 import { ScheduleView } from './components/ScheduleView.js';
 import { SettingsView } from './components/SettingsView.js';
+import { AdminView } from './components/AdminView.js';
 
 const TransitView = React.lazy(() => import('./components/TransitView.js'));
 
@@ -62,7 +63,8 @@ export const DEFAULT_APP_SETTINGS = {
 };
 
 export function App() {
-  const [view, setView] = useState<'home' | 'schedule' | 'hw' | 'map' | 'settings'>('home');
+  const [view, setView] = useState<'home' | 'schedule' | 'hw' | 'map' | 'settings' | 'admin'>('home');
+  const [isAdmin, setIsAdmin] = useState(false);
   const [selected, setSelected] = useState(new Date());
   const [weekOffset, setWeekOffset] = useState(0);
   const [hw, setHw] = useState<any[]>([]);
@@ -142,6 +144,9 @@ export function App() {
         if (data?.transit) {
           setTransit(data.transit);
         }
+        if (data?.isAdmin != null) {
+          setIsAdmin(Boolean(data.isAdmin));
+        }
       } catch (e: any) {
         if (tg?.initData) setError(e.message);
         else
@@ -219,13 +224,15 @@ export function App() {
         setSelectedExceptionClass(null);
       } else if (commuteModal) {
         setCommuteModal(false);
+      } else if (view === 'admin') {
+        setView('settings');
       } else if (view === 'settings') {
         setView(previousViewRef.current || 'home');
       }
     };
 
     const hasOpenModal = modal || classModal || exceptionModal || commuteModal;
-    const shouldShow = view === 'settings' || hasOpenModal;
+    const shouldShow = view === 'settings' || view === 'admin' || hasOpenModal;
 
     if (shouldShow) {
       back.show();
@@ -410,7 +417,7 @@ export function App() {
 
   const navigate = (v: 'home' | 'schedule' | 'hw' | 'map' | 'settings') => {
     vibrate();
-    if (view !== 'settings') {
+    if (view !== 'settings' && view !== 'admin') {
       previousViewRef.current = view;
     }
     setView(v);
@@ -460,10 +467,18 @@ export function App() {
           ) : (
             <span className="avatar-fallback">{avatarLetter}</span>
           )}
+          {isAdmin && <span className="header-admin-crown" title="Администратор">👑</span>}
         </button>
       </header>
 
-      {view === 'settings' ? (
+      {view === 'admin' ? (
+        <AdminView
+          onBack={() => {
+            vibrate();
+            setView('settings');
+          }}
+        />
+      ) : view === 'settings' ? (
         <SettingsView
           settings={settings}
           transit={transit}
@@ -473,6 +488,11 @@ export function App() {
             setView(previousViewRef.current || 'home');
           }}
           onOpenCommuteSettings={() => setCommuteModal(true)}
+          isAdmin={isAdmin}
+          onOpenAdmin={() => {
+            vibrate();
+            setView('admin');
+          }}
         />
       ) : view === 'schedule' ? (
         <ScheduleView

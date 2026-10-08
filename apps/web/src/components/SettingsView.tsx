@@ -4,7 +4,9 @@ import {
   Bus,
   CalendarDays,
   ChevronLeft,
+  ChevronRight,
   CircleAlert,
+  Crown,
   House,
   Moon,
   ShieldCheck,
@@ -19,6 +21,8 @@ interface SettingsViewProps {
   save: (patch: any) => Promise<void>;
   onBack: () => void;
   onOpenCommuteSettings?: () => void;
+  isAdmin?: boolean;
+  onOpenAdmin?: () => void;
 }
 
 export function SettingsView({
@@ -27,6 +31,8 @@ export function SettingsView({
   save,
   onBack,
   onOpenCommuteSettings,
+  isAdmin,
+  onOpenAdmin,
 }: SettingsViewProps) {
   const [dur, setDur] = useState<string>(
     settings.english_duration != null ? String(settings.english_duration) : ''
@@ -107,6 +113,24 @@ export function SettingsView({
           <span>{userHandle || 'Telegram профиль'}</span>
         </div>
       </div>
+
+      {isAdmin && (
+        <section className="setting-card admin-entry-card" onClick={onOpenAdmin}>
+          <div className="admin-entry-inner">
+            <div className="admin-entry-icon">
+              <Crown size={20} />
+            </div>
+            <div className="admin-entry-text">
+              <div className="admin-entry-title">
+                <b>Панель администратора</b>
+                <span className="admin-tag">MASTER</span>
+              </div>
+              <p>Рассылка студентам, запуск сводок и статистика</p>
+            </div>
+            <ChevronRight size={18} className="admin-entry-arrow" />
+          </div>
+        </section>
+      )}
 
       <section className="setting-card">
         <h3>
