@@ -456,29 +456,31 @@ export async function handleTransitRoutes(
         ? body.walk_after_minutes
         : 5;
       const legsJson = JSON.stringify(body.legs || []);
-      const isConfigured = body.is_configured ? 1 : 1; // Marking confirmed
+      const isConfigured = body.is_configured ? 1 : 0;
 
-      await env.DB.prepare(
-        'UPDATE commute_options SET walk_before_minutes=?, walk_after_minutes=?, legs=?, is_configured=?, updated_at=CURRENT_TIMESTAMP WHERE id=?'
+      const updateResult = await env.DB.prepare(
+        'UPDATE commute_options SET walk_before_minutes=?, walk_after_minutes=?, legs=?, is_configured=?, updated_at=CURRENT_TIMESTAMP WHERE id=? AND user_id=?'
       )
-        .bind(walkBefore, walkAfter, legsJson, isConfigured, optionId)
+        .bind(walkBefore, walkAfter, legsJson, isConfigured, optionId, userId)
         .run();
 
       const updated = await env.DB.prepare(
-        'SELECT * FROM commute_options WHERE id=?'
+        'SELECT * FROM commute_options WHERE id=? AND user_id=?'
       )
-        .bind(optionId)
+        .bind(optionId, userId)
         .first<any>();
+
+      if (!updated) {
+        return json({ error: 'Маршрут не найден или нет доступа.' }, 404);
+      }
 
       return json({
         success: true,
-        option: updated
-          ? {
-              ...updated,
-              is_configured: Boolean(updated.is_configured),
-              legs: JSON.parse(updated.legs || '[]'),
-            }
-          : null,
+        option: {
+          ...updated,
+          is_configured: Boolean(updated.is_configured),
+          legs: JSON.parse(updated.legs || '[]'),
+        },
       });
     } catch (err: any) {
       return json({ error: err instanceof Error ? err.message : 'Ошибка сохранения маршрута.' }, 400);
