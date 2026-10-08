@@ -743,13 +743,6 @@ export const TransitView: React.FC<TransitViewProps> = ({
     }
   };
 
-  const selectedTrack =
-    selectedRouteFilter !== 'all' ? getRouteTrack(selectedRouteFilter, activeVehicles) : null;
-  const vehiclesOnSelectedRoute =
-    selectedRouteFilter !== 'all'
-      ? activeVehicles.filter((v) => v.route_short_name === selectedRouteFilter)
-      : activeVehicles;
-
   return (
     <div className="transit-view-page">
       {/* Top Toolbar Above Map */}
@@ -878,7 +871,7 @@ export const TransitView: React.FC<TransitViewProps> = ({
                   borderLeftColor: color,
                   borderLeftWidth: '3.5px',
                 }}
-                onClick={() => setSelectedRouteFilter(rt)}
+                onClick={() => setSelectedRouteFilter(selectedRouteFilter === rt ? 'all' : rt)}
               >
                 №{rt} {count > 0 ? `(${count})` : ''}
               </button>
@@ -932,46 +925,6 @@ export const TransitView: React.FC<TransitViewProps> = ({
                 </>
               )}
             </div>
-          </div>
-        )}
-
-        {/* Floating Active Route Card with Trolley Count */}
-        {selectedRouteFilter !== 'all' && (
-          <div className="active-route-hud-card">
-            <div
-              className="active-route-badge"
-              style={{ background: selectedTrack?.color || '#d946ef' }}
-            >
-              <span>№{selectedRouteFilter}</span>
-            </div>
-            <div className="active-route-meta">
-              <div className="active-route-header-text">
-                <strong className="active-route-title">
-                  {selectedTrack?.routeName || `Маршрут №${selectedRouteFilter}`}
-                </strong>
-                <span className="active-route-count-pill">
-                  {vehiclesOnSelectedRoute.length}{' '}
-                  {vehiclesOnSelectedRoute.length === 1
-                    ? 'машина'
-                    : vehiclesOnSelectedRoute.length < 5
-                    ? 'машины'
-                    : 'машин'}{' '}
-                  на рейсе
-                </span>
-              </div>
-              <small className="active-route-desc">
-                {selectedTrack?.description || 'Траектория движения'}
-              </small>
-            </div>
-            <button
-              type="button"
-              className="active-route-close-btn"
-              onClick={() => setSelectedRouteFilter('all')}
-              title="Показать все машины"
-              aria-label="Сбросить выбранный маршрут"
-            >
-              <X size={15} />
-            </button>
           </div>
         )}
 
