@@ -300,7 +300,9 @@ export function CommuteSettingsModal({
                   ))}
                   {searchResults.length === 0 && (
                     <div className="empty-search-text">
-                      Остановок не найдено. Начни вводить название.
+                      {searchQuery.trim()
+                        ? 'Остановок не найдено.'
+                        : 'Остановки не загружены или введи запрос для поиска.'}
                     </div>
                   )}
                 </div>

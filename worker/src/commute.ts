@@ -13,100 +13,24 @@ import { json } from './homework.js';
 import { Env } from './types.js';
 import { fetchLiveVehicles } from './tranzy.js';
 
+import { syncTranzyStops } from './transit.js';
+
 export { fetchLiveVehicles };
 
 /**
- * Ensures stops table in D1 is populated.
+ * Ensures stops table in D1 is populated from Tranzy OpenData.
+ * If 0 stops exist, attempts to sync real stops from Tranzy OpenData.
  */
 export async function ensureStopsPopulated(env: Env): Promise<void> {
-  const countRow = await env.DB.prepare('SELECT COUNT(*) as c FROM tranzy_stops').first<{
-    c: number;
-  }>();
-  if (countRow && countRow.c > 40) return;
-
-  // Comprehensive Chișinău trolleybus network stops (Routes 2, 4, 10, 17, 22, 24, USM, Sports, Botanica, Centru, Râșcani, Buiucani)
-  const seedStops: TransitStop[] = [
-    // Sector Botanica (Dacia / Traian / Decebal / Grenoble / Cuza Vodă)
-    { stop_id: 101, stop_name: 'Dacia / Cuza Vodă', stop_lat: 46.9825, stop_lon: 28.865 },
-    { stop_id: 102, stop_name: 'Strada Cuza Vodă', stop_lat: 46.983, stop_lon: 28.864 },
-    { stop_id: 103, stop_name: 'Bulevardul Traian', stop_lat: 46.987, stop_lon: 28.857 },
-    { stop_id: 104, stop_name: 'Strada Grenoble', stop_lat: 46.9805, stop_lon: 28.845 },
-    { stop_id: 105, stop_name: 'Strada Independenței', stop_lat: 46.9845, stop_lon: 28.8585 },
-    { stop_id: 106, stop_name: 'Bulevardul Decebal', stop_lat: 46.995, stop_lon: 28.851 },
-    { stop_id: 107, stop_name: 'Strada Trandafirilor', stop_lat: 46.9985, stop_lon: 28.847 },
-    { stop_id: 108, stop_name: 'Parcul «Valea Trandafirilor»', stop_lat: 47.001, stop_lon: 28.849 },
-    { stop_id: 109, stop_name: 'Strada Teilor', stop_lat: 46.989, stop_lon: 28.855 },
-    { stop_id: 110, stop_name: 'Strada Hristo Botev', stop_lat: 46.992, stop_lon: 28.853 },
-    { stop_id: 111, stop_name: 'Strada Nikolai Zelinski', stop_lat: 46.997, stop_lon: 28.85 },
-    { stop_id: 112, stop_name: 'Centrul Comercial «Jumbo»', stop_lat: 47.005, stop_lon: 28.853 },
-    { stop_id: 113, stop_name: 'Piața Decebal', stop_lat: 46.99, stop_lon: 28.854 },
-    { stop_id: 114, stop_name: 'Bulevardul Dacia (str. Burebista)', stop_lat: 46.974, stop_lon: 28.878 },
-    { stop_id: 115, stop_name: 'Strada Grădina Botanică', stop_lat: 46.972, stop_lon: 28.883 },
-    { stop_id: 116, stop_name: 'Porțile Orașului (Botanica)', stop_lat: 46.971, stop_lon: 28.887 },
-    { stop_id: 117, stop_name: 'Aeroportul Internațional Chișinău', stop_lat: 46.935, stop_lon: 28.932 },
-    // Sector Centru & Gara Feroviară
-    { stop_id: 200, stop_name: 'Gara Feroviară', stop_lat: 47.0125, stop_lon: 28.859 },
-    { stop_id: 201, stop_name: 'Bulevardul Iurie Gagarin', stop_lat: 47.0115, stop_lon: 28.858 },
-    { stop_id: 202, stop_name: 'Bulevardul Constantin Negruzzi', stop_lat: 47.015, stop_lon: 28.852 },
-    { stop_id: 203, stop_name: 'Piața Dimitrie Cantemir (Centru)', stop_lat: 47.0165, stop_lon: 28.85 },
-    { stop_id: 204, stop_name: 'Hotel «Cosmos»', stop_lat: 47.014, stop_lon: 28.854 },
-    { stop_id: 205, stop_name: 'Strada Ismail (bd. Ștefan cel Mare)', stop_lat: 47.018, stop_lon: 28.846 },
-    { stop_id: 206, stop_name: 'Piața Centrală', stop_lat: 47.0195, stop_lon: 28.842 },
-    { stop_id: 207, stop_name: 'Strada Armenească', stop_lat: 47.0205, stop_lon: 28.839 },
-    { stop_id: 208, stop_name: 'Teatrul Mihai Eminescu', stop_lat: 47.021, stop_lon: 28.837 },
-    { stop_id: 209, stop_name: 'Primăria Municipiului Chișinău', stop_lat: 47.022, stop_lon: 28.835 },
-    { stop_id: 210, stop_name: 'Piața Marii Adunări Naționale', stop_lat: 47.023, stop_lon: 28.834 },
-    { stop_id: 211, stop_name: 'Parcul Ștefan cel Mare (Grădina Publică)', stop_lat: 47.0245, stop_lon: 28.8322 },
-    { stop_id: 212, stop_name: 'Cinematograful «Patria»', stop_lat: 47.0255, stop_lon: 28.83 },
-    { stop_id: 213, stop_name: 'Teatrul Național de Operă și Balet', stop_lat: 47.027, stop_lon: 28.828 },
-    { stop_id: 214, stop_name: 'Universitatea de Medicină (USMF)', stop_lat: 47.032, stop_lon: 28.822 },
-    { stop_id: 215, stop_name: 'Strada Mitropolit Bănulescu-Bodoni', stop_lat: 47.0225, stop_lon: 28.833 },
-    { stop_id: 216, stop_name: 'Strada Alexandr Pușkin', stop_lat: 47.0235, stop_lon: 28.836 },
-    // Sector Universitatea de Stat (USM) & Telecentru
-    { stop_id: 301, stop_name: 'Universitatea de Stat (USM - Bloc Central)', stop_lat: 47.0185, stop_lon: 28.824 },
-    { stop_id: 302, stop_name: 'Strada Mihail Kogălniceanu', stop_lat: 47.019, stop_lon: 28.827 },
-    { stop_id: 303, stop_name: 'Strada Alexei Mateevici', stop_lat: 47.018, stop_lon: 28.823 },
-    { stop_id: 304, stop_name: 'Muzeul Național de Istorie', stop_lat: 47.0215, stop_lon: 28.8275 },
-    { stop_id: 305, stop_name: 'Strada București', stop_lat: 47.02, stop_lon: 28.83 },
-    { stop_id: 306, stop_name: 'Strada 31 August 1989', stop_lat: 47.022, stop_lon: 28.828 },
-    { stop_id: 307, stop_name: 'Turnul de Apă / Parcul «Valea Morilor»', stop_lat: 47.0195, stop_lon: 28.821 },
-    { stop_id: 308, stop_name: 'Strada Pan Halippa', stop_lat: 47.01, stop_lon: 28.831 },
-    { stop_id: 309, stop_name: 'Memorialul «Eternitate»', stop_lat: 47.009, stop_lon: 28.832 },
-    { stop_id: 310, stop_name: 'Strada Gheorghe Asachi', stop_lat: 47.004, stop_lon: 28.828 },
-    { stop_id: 311, stop_name: 'Strada Vasile Alecsandri', stop_lat: 47.015, stop_lon: 28.835 },
-    { stop_id: 312, stop_name: 'Strada Dokuceaev (Telecentru)', stop_lat: 47.0, stop_lon: 28.823 },
-    { stop_id: 313, stop_name: 'Spitalul Clinic Republican', stop_lat: 46.992, stop_lon: 28.825 },
-    // Complexul Sportiv USM (str. Ismail 1)
-    { stop_id: 401, stop_name: 'Strada Ismail (Gara)', stop_lat: 47.011, stop_lon: 28.852 },
-    { stop_id: 404, stop_name: 'Complexul Sportiv USM (Ismail 1)', stop_lat: 47.012, stop_lon: 28.847 },
-    { stop_id: 405, stop_name: 'Stadionul «Dinamo»', stop_lat: 47.029, stop_lon: 28.82 },
-    // Sector Râșcani & Ciocana (Trasee 10, 24)
-    { stop_id: 501, stop_name: 'Circul din Chișinău', stop_lat: 47.037, stop_lon: 28.848 },
-    { stop_id: 502, stop_name: 'Bulevardul Renașterii Naționale', stop_lat: 47.034, stop_lon: 28.845 },
-    { stop_id: 503, stop_name: 'Bulevardul Grigore Vieru', stop_lat: 47.028, stop_lon: 28.838 },
-    { stop_id: 504, stop_name: 'Strada Kiev (Râșcani)', stop_lat: 47.042, stop_lon: 28.858 },
-    { stop_id: 505, stop_name: 'Bulevardul Moscova (Parcul Afgan)', stop_lat: 47.048, stop_lon: 28.863 },
-    { stop_id: 506, stop_name: 'Strada Miron Costin', stop_lat: 47.046, stop_lon: 28.861 },
-    { stop_id: 507, stop_name: 'Strada Alecu Russo', stop_lat: 47.045, stop_lon: 28.868 },
-    { stop_id: 508, stop_name: 'Bulevardul Mircea cel Bătrân (Ciocana)', stop_lat: 47.04, stop_lon: 28.885 },
-    // Sector Buiucani (Trasee 22, 4)
-    { stop_id: 601, stop_name: 'Piața «Dimitrie Cantemir» (Ion Creangă)', stop_lat: 47.035, stop_lon: 28.815 },
-    { stop_id: 602, stop_name: 'Parcul «Alunelul»', stop_lat: 47.038, stop_lon: 28.81 },
-    { stop_id: 603, stop_name: 'Strada Ion Creangă', stop_lat: 47.033, stop_lon: 28.812 },
-    { stop_id: 604, stop_name: 'Parcul «Dendrariu»', stop_lat: 47.031, stop_lon: 28.813 },
-    { stop_id: 605, stop_name: 'Strada Alba Iulia (Buiucani)', stop_lat: 47.042, stop_lon: 28.79 },
-    { stop_id: 606, stop_name: 'Piața «Unirii Principatelor»', stop_lat: 47.039, stop_lon: 28.805 },
-  ];
-
-  const nowSec = Math.floor(Date.now() / 1000);
-  const stmts = seedStops.map((s) =>
-    env.DB.prepare(
-      'INSERT OR REPLACE INTO tranzy_stops(stop_id, stop_name, stop_desc, stop_lat, stop_lon, updated_at) VALUES(?,?,?,?,?,?)'
-    ).bind(s.stop_id, s.stop_name, s.stop_desc || null, s.stop_lat, s.stop_lon, nowSec)
-  );
-
-  for (let i = 0; i < stmts.length; i += 25) {
-    await env.DB.batch(stmts.slice(i, i + 25));
+  try {
+    const countRow = await env.DB.prepare('SELECT COUNT(*) as c FROM tranzy_stops').first<{
+      c: number;
+    }>();
+    if (!countRow || countRow.c === 0) {
+      await syncTranzyStops(env);
+    }
+  } catch {
+    // Non-fatal if stops sync fails
   }
 }
 
@@ -180,6 +104,24 @@ export async function getUserCommuteOptions(
         )
       );
       await env.DB.batch(inserts);
+      return getUserCommuteOptions(env, userId);
+    } else {
+      const defaultLegsUnivA = JSON.stringify([
+        { mode: 'fixed_route', route_id: 9, route_short_name: '2', board_stop_id: null, board_stop_name: 'Dacia / Cuza Vodă', alight_stop_id: null, alight_stop_name: 'Parcul Ștefan cel Mare' },
+        { mode: 'any_trolleybus', route_id: null, route_short_name: 'любой троллейбус', board_stop_id: null, board_stop_name: 'Parcul Ștefan cel Mare', alight_stop_id: null, alight_stop_name: 'Universitatea de Stat' },
+      ]);
+      const defaultLegsUnivB = JSON.stringify([
+        { mode: 'fixed_route', route_id: 20, route_short_name: '4', board_stop_id: null, board_stop_name: 'Dacia / Cuza Vodă', alight_stop_id: null, alight_stop_name: 'Universitatea de Stat' },
+      ]);
+      const defaultLegsSports = JSON.stringify([
+        { mode: 'fixed_route', route_id: 16, route_short_name: '17', board_stop_id: null, board_stop_name: 'Strada Cuza Vodă', alight_stop_id: null, alight_stop_name: 'Complexul Sportiv USM (Ismail 1)' },
+      ]);
+      const fallbackInserts = [
+        env.DB.prepare('INSERT OR IGNORE INTO commute_options(id, user_id, destination, name, position, enabled, is_configured, walk_before_minutes, walk_after_minutes, legs) VALUES(?,?,?,?,?,?,?,?,?,?)').bind(`univ-a-${userId}`, userId, 'university', 'Университет · А', 1, 1, 0, 7, 5, defaultLegsUnivA),
+        env.DB.prepare('INSERT OR IGNORE INTO commute_options(id, user_id, destination, name, position, enabled, is_configured, walk_before_minutes, walk_after_minutes, legs) VALUES(?,?,?,?,?,?,?,?,?,?)').bind(`univ-b-${userId}`, userId, 'university', 'Университет · Б', 2, 1, 0, 7, 5, defaultLegsUnivB),
+        env.DB.prepare('INSERT OR IGNORE INTO commute_options(id, user_id, destination, name, position, enabled, is_configured, walk_before_minutes, walk_after_minutes, legs) VALUES(?,?,?,?,?,?,?,?,?,?)').bind(`sports-17-${userId}`, userId, 'sports', 'Физкультура', 1, 1, 0, 12, 3, defaultLegsSports),
+      ];
+      await env.DB.batch(fallbackInserts);
       return getUserCommuteOptions(env, userId);
     }
   }

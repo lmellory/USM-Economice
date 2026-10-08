@@ -430,4 +430,39 @@ describe('Tranzy Commute Calculations', () => {
     expect(r17!.vehiclesOnLineCount).toBe(1);
     expect(r17!.nearbyVehiclesCount).toBe(1);
   });
+
+  // 10. Тест: Реальные ID маршрутов Tranzy (route_id: 9 = №2, route_id: 20 = №4, route_id: 16 = №17) и поиск остановки по названию
+  it('10. should match real Tranzy route IDs (route_id: 9 for №2) and resolve board stop fuzzy by name when stop_id is null', () => {
+    const legDraft: CommuteLeg = {
+      mode: 'fixed_route',
+      route_id: 9, // Real Tranzy ID for Route 2
+      route_short_name: '2',
+      board_stop_id: null,
+      board_stop_name: 'Dacia / Cuza Vodă',
+      alight_stop_id: null,
+      alight_stop_name: 'Parcul Ștefan cel Mare',
+    };
+
+    const liveVehicleRtec: VehiclePosition = {
+      id: 'rtec-trolley-9',
+      label: '2105',
+      route_id: 9, // Tranzy OpenData route_id for №2
+      latitude: 46.983,
+      longitude: 28.865,
+      timestamp: new Date(baseNowMs - 10000).toISOString(),
+    };
+
+    const res = calculateLegWaitTime(legDraft, 0, baseNowMin, {
+      nowMs: baseNowMs,
+      nowMinuteOfDay: baseNowMin,
+      vehicles: [liveVehicleRtec],
+      stops,
+    });
+
+    expect(res.source).toBe('live');
+    expect(res.chosenRouteName).toBe('2');
+    expect(res.waitingMinutes).toBe(1);
+    expect(res.vehiclesOnLineCount).toBe(1);
+    expect(res.nearbyVehiclesCount).toBe(1);
+  });
 });

@@ -151,8 +151,14 @@ export function calculateLegWaitTime(
       return false; // Stale GPS or invalid timestamp
     }
     if (leg.mode === 'fixed_route') {
-      const canonicalId = leg.route_short_name ? CHISINAU_RTEC_ROUTE_MAP[leg.route_short_name] : undefined;
-      if (canonicalId != null && v.route_id === canonicalId) return true;
+      const canonicalIdFromShortName = leg.route_short_name
+        ? CHISINAU_RTEC_ROUTE_MAP[leg.route_short_name]
+        : undefined;
+      const canonicalIdFromRouteId =
+        leg.route_id != null ? CHISINAU_RTEC_ROUTE_MAP[String(leg.route_id)] : undefined;
+
+      if (canonicalIdFromShortName != null && v.route_id === canonicalIdFromShortName) return true;
+      if (canonicalIdFromRouteId != null && v.route_id === canonicalIdFromRouteId) return true;
       if (leg.route_id != null && v.route_id === leg.route_id) return true;
       if (
         leg.route_short_name &&
@@ -183,7 +189,7 @@ export function calculateLegWaitTime(
   // 2. Schedule lookup for travel duration between board and alight
   let scheduledRideMinutes: number | null = null;
   const stopTimes = context.stopTimes || [];
-  if (stopTimes.length > 0) {
+  if (stopTimes.length > 0 && leg.board_stop_id != null && leg.alight_stop_id != null) {
     const boardEntries = stopTimes.filter((st) => st.stop_id === leg.board_stop_id);
     for (const b of boardEntries) {
       const a = stopTimes.find(
@@ -201,6 +207,17 @@ export function calculateLegWaitTime(
 
   const travelMinutes = scheduledRideMinutes ?? defaultFallbackRide;
 
+  // Resolve board stop either by stop_id or by stop_name fuzzy match
+  const resolvedBoardStop =
+    (leg.board_stop_id != null
+      ? context.stops?.find((s) => s.stop_id === leg.board_stop_id)
+      : undefined) ||
+    (leg.board_stop_name
+      ? context.stops?.find((s) =>
+          s.stop_name.toLowerCase().includes(leg.board_stop_name!.toLowerCase().trim())
+        )
+      : undefined);
+
   // 3. If live vehicles exist, find the closest one arriving at or after passengerReadyMinute
   type CandidateArrival = {
     vehicle: VehiclePosition;
@@ -217,7 +234,7 @@ export function calculateLegWaitTime(
     let source: EstimateSource = 'live';
 
     // Trip stop_times matching
-    if (v.trip_id && stopTimes.length > 0) {
+    if (v.trip_id && stopTimes.length > 0 && leg.board_stop_id != null) {
       const tripStops = stopTimes
         .filter((st) => st.trip_id === v.trip_id)
         .sort((a, b) => a.stop_sequence - b.stop_sequence);
@@ -270,22 +287,19 @@ export function calculateLegWaitTime(
     }
 
     // Fallback GPS distance estimate if trip_id wasn't in stop_times but board stop coords exist
-    if (etaFromNow === null && context.stops) {
-      const boardStop = context.stops.find((s) => s.stop_id === leg.board_stop_id);
-      if (boardStop) {
-        const distMeters = haversineDistanceMeters(
-          v.latitude,
-          v.longitude,
-          boardStop.stop_lat,
-          boardStop.stop_lon
-        );
-        // Vehicle moving towards stop at ~20 km/h (~333 m/min)
-        if (distMeters <= 200) {
-          etaFromNow = 1;
-        } else if (distMeters <= 5000) {
-          etaFromNow = Math.max(1, Math.round(distMeters / 350));
-          source = 'live';
-        }
+    if (etaFromNow === null && resolvedBoardStop) {
+      const distMeters = haversineDistanceMeters(
+        v.latitude,
+        v.longitude,
+        resolvedBoardStop.stop_lat,
+        resolvedBoardStop.stop_lon
+      );
+      // Vehicle moving towards stop at ~20 km/h (~333 m/min)
+      if (distMeters <= 200) {
+        etaFromNow = 1;
+      } else if (distMeters <= 5000) {
+        etaFromNow = Math.max(1, Math.round(distMeters / 350));
+        source = 'live';
       }
     }
 
@@ -296,6 +310,12 @@ export function calculateLegWaitTime(
       if (!routeName && context.candidateTrolleyRoutes) {
         const found = context.candidateTrolleyRoutes.find((r) => r.route_id === v.route_id);
         if (found) routeName = found.route_short_name;
+      }
+      if (!routeName && leg.route_id != null && CHISINAU_RTEC_ROUTE_ID_TO_NAME[leg.route_id]) {
+        routeName = CHISINAU_RTEC_ROUTE_ID_TO_NAME[leg.route_id];
+      }
+      if (!routeName && v.route_id != null && CHISINAU_RTEC_ROUTE_ID_TO_NAME[v.route_id]) {
+        routeName = CHISINAU_RTEC_ROUTE_ID_TO_NAME[v.route_id];
       }
       if (!routeName) routeName = String(v.route_id || 'троллейбус');
 
@@ -315,17 +335,16 @@ export function calculateLegWaitTime(
   const vehiclesOnLineCount = validVehicles.length;
 
   // Calculate distance of valid vehicles to the boarding stop
-  const boardStop = context.stops?.find((s) => s.stop_id === leg.board_stop_id);
   let nearbyVehiclesCount = 0;
   let minBoardDist = Infinity;
 
-  if (boardStop) {
+  if (resolvedBoardStop) {
     for (const v of validVehicles) {
       const d = haversineDistanceMeters(
         v.latitude,
         v.longitude,
-        boardStop.stop_lat,
-        boardStop.stop_lon
+        resolvedBoardStop.stop_lat,
+        resolvedBoardStop.stop_lon
       );
       if (d < minBoardDist) {
         minBoardDist = d;

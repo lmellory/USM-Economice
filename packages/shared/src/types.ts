@@ -58,9 +58,9 @@ export interface CommuteLeg {
   mode: CommuteLegMode;
   route_id?: number | null;
   route_short_name?: string | null;
-  board_stop_id: number;
+  board_stop_id?: number | null;
   board_stop_name: string;
-  alight_stop_id: number;
+  alight_stop_id?: number | null;
   alight_stop_name: string;
 }
 

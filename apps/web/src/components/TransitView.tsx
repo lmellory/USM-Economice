@@ -150,7 +150,7 @@ export const TransitView: React.FC<TransitViewProps> = ({
   const boardingStopName = useMemo(() => {
     const primaryOption = options[0];
     const firstLeg = primaryOption?.legs?.[0];
-    return firstLeg?.board_stop_name || (firstLeg as any)?.boardStopName || 'Dacia / Cuza Vodă';
+    return firstLeg?.board_stop_name || (firstLeg as any)?.boardStopName || '';
   }, [options]);
 
   // Initialize Map
@@ -651,7 +651,11 @@ export const TransitView: React.FC<TransitViewProps> = ({
             title="Показать/скрыть остановки"
           >
             <span>🚏 Остановки</span>
-            {stopsList.length > 0 && <small>{stopsList.length}</small>}
+            {stopsList.length > 0 ? (
+              <small>{stopsList.length}</small>
+            ) : (
+              <small style={{ opacity: 0.6 }}>не загружены</small>
+            )}
           </button>
 
           {/* Actions: Commute settings, Locate GPS & Refresh */}
