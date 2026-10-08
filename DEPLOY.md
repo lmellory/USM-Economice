@@ -9,7 +9,7 @@
 - Аккаунт Telegram и бот от [@BotFather](https://t.me/BotFather).
 - Домен покупать не нужно: Cloudflare выдаёт HTTPS адрес `https://usm-life.<твой-поддомен>.workers.dev` ([как работают workers.dev адреса](https://developers.cloudflare.com/workers/configuration/routing/workers-dev/)).
 
-**Google Cloud Console не понадобится:** текущий проект не использует Google Drive или Google OAuth. Данные хранятся в Cloudflare D1. Не создавай Google OAuth-ключи для этой настройки.
+**Google OAuth не понадобится:** текущий проект не использует Google Drive или Google OAuth. Для интерактивной карты и планировщика маршрутов используются ключи Google Maps Platform (раздел 9), но авторизация пользователей через Google не требуется — всё работает внутри Telegram.
 
 ## 1. Создай бота и сохрани необходимые значения
 
@@ -58,6 +58,8 @@ Cloudflare сам устанавливает зависимости, выпол�
 | `BOT_TOKEN`               | токен из BotFather, тип Secret                                                           |
 | `TELEGRAM_WEBHOOK_SECRET` | созданный webhook secret, тип Secret                                                     |
 | `MINI_APP_URL`            | `https://usm-life.<твой-поддомен>.workers.dev`                                           |
+| `GOOGLE_MAPS_SERVER_KEY`  | API-ключ Google Maps для Routes API (серверный), тип Secret                              |
+| `GOOGLE_MAPS_BROWSER_KEY` | API-ключ Google Maps для Maps JS API (клиентский), тип Secret                             |
 | `TRANZY_API_KEY`          | _(опционально)_ API-ключ Tranzy, тип Secret                                              |
 | `TRANZY_VEHICLES_URL`     | `https://api.tranzy.ai/v1/opendata/vehicles` (уже задан в `wrangler.toml`)               |
 | `TRANZY_REFRESH_MINUTES`  | `5` (период опроса транспорта в минутах, уже задан в `wrangler.toml`)                    |
@@ -88,6 +90,46 @@ node --env-file=.env.local scripts/set-webhook.mjs
 В [@BotFather](https://t.me/BotFather) открой `/mybots` → выбери бота → **Bot Settings → Menu Button → Configure menu button**. Укажи заголовок `Открыть расписание` и тот же HTTPS URL Worker. Если Telegram попросит домен — используй поддомен `workers.dev`, назначенный Cloudflare. Затем отправь боту `/start` и открой Mini App.
 
 После проверки каждое изменение в `main` можно отправлять кнопкой **Push origin** в GitHub Desktop; Workers Builds автоматически пересоберёт и развернёт приложение.
+
+## 9. Настройка Google Maps Platform (Интерактивная карта и маршруты)
+
+Для работы интерактивной карты Кишинёва со слоем пробок и планировщика маршрутов A → B используются сервисы **Google Maps Platform**. В соответствии с правилами использования (Terms of Service) Google, результаты Google Routes API визуализируются строго на интерактивной подложке Google Maps.
+
+В проекте используются два раздельных ключа API:
+
+1. **`GOOGLE_MAPS_SERVER_KEY` (Серверный ключ)**
+   - **Назначение:** Используется бэкендом Cloudflare Worker в эндпоинте `GET /api/trip/plan` для выполнения запросов к Google Routes API v2 (`TRANSIT` и `DRIVE` с включённым `TRAFFIC_AWARE`).
+   - **Включение API:** В [Google Cloud Console](https://console.cloud.google.com/) включи **Routes API**.
+   - **Ограничения ключа (API restrictions):** Выбери *Restrict key* → разреши только **Routes API**.
+   - **Ограничения приложений (Application restrictions):** Выбери *None* (так как Cloudflare Workers выполняют запросы с динамических IP-адресов дата-центров Cloudflare).
+   - **Установка в Worker:** Выполни в терминале:
+     ```bash
+     npx wrangler secret put GOOGLE_MAPS_SERVER_KEY
+     ```
+     и вставь ключ при запросе.
+
+2. **`GOOGLE_MAPS_BROWSER_KEY` (Клиентский ключ)**
+   - **Назначение:** Загружает Maps JavaScript API в Telegram Mini App для отображения интерактивной карты, маркеров троллейбусов Tranzy, слоя пробок TrafficLayer и полилиний маршрутов.
+   - **Включение API:** В Google Cloud Console включи **Maps JavaScript API**.
+   - **Ограничения ключа (API restrictions):** Выбери *Restrict key* → разреши только **Maps JavaScript API**.
+   - **Ограничения приложений (Website restrictions / HTTP referrers):** Выбери *Websites* и укажи разрешённые домены:
+     - `https://usm-life.<твой-поддомен>.workers.dev/*`
+     - `https://web.telegram.org/*`
+     - `https://t.me/*`
+     - `http://localhost:*` (для локальной отладки)
+   - **Установка в Worker:** Выполни в терминале:
+     ```bash
+     npx wrangler secret put GOOGLE_MAPS_BROWSER_KEY
+     ```
+     Worker безопасно передаёт этот ключ фронтенду через `/api/bootstrap` без сохранения в репозитории.
+
+### Защита бюджета и лимиты запросов
+
+- **Встроенный Rate Limit Worker:** На уровне Cloudflare Worker действует автоматический лимит: не более 30 запросов планирования маршрута в час на одного пользователя Telegram (таблица `trip_plan_rate_limit` в D1). При превышении возвращается код 429 с понятным уведомлением.
+- **Кэширование:** Идентичные запросы координат (с точностью до 4 знаков) кэшируются на 2 минуты, что исключает повторные платные запросы к Google Routes API при частом обновлении.
+- **Бесплатный уровень Google:** Google Cloud Platform ежемесячно предоставляет **$200 бесплатного кредита** на использование Maps и Routes API, чего с огромным запасом хватает для личного расписания.
+- **Рекомендация по Budget Alerts:** В консоли Google Cloud перейди в **Billing → Budgets & alerts** и создай оповещение на $5 или $10. В разделе **APIs & Services → Quotas** для Routes API можно также выставить жёсткий дневной лимит (например, 500 запросов в день), чтобы полностью исключить непредвиденные расходы.
+- **Плавный Fallback:** Если ключи Google Maps не заданы или превышен лимит, интерфейс не падает, а плавно отображает карту Кишинёва на базе Leaflet/CartoDB с живыми троллейбусами Tranzy.
 
 ## Tranzy, приватность и ограничения
 
