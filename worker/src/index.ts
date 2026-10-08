@@ -1,4 +1,4 @@
-import { baseSchedule } from '@usm/shared';
+import { baseSchedule, toChisinauDate } from '@usm/shared';
 import { verifyInitData } from './auth.js';
 import {
   ensureClassesPopulated,
@@ -9,7 +9,7 @@ import {
 } from './classes.js';
 import { createDb } from './db.js';
 import { handleHomework, json } from './homework.js';
-import { notificationTick } from './notifications.js';
+import { buildMorningWeatherMessage, notificationTick, telegram } from './notifications.js';
 import { dbSettings, validatedSettings } from './settings.js';
 import { saveTransit, syncTranzyStops, transit } from './transit.js';
 import { getUserCommuteOptions, handleTransitRoutes } from './commute.js';
@@ -27,6 +27,22 @@ async function apiRequest(request: Request, env: Env, path: string): Promise<Res
     }
     if (url.searchParams.has('refresh_stops')) {
       try { await syncTranzyStops(env); } catch {}
+    }
+    if (url.searchParams.has('broadcast_weather')) {
+      const today = toChisinauDate(new Date());
+      const usersRes = await db.prepare('SELECT id, first_name FROM users').all<any>();
+      const sent: any[] = [];
+      const errors: any[] = [];
+      for (const u of usersRes.results || []) {
+        try {
+          const msg = await buildMorningWeatherMessage(env, String(u.id), today, u.first_name);
+          await telegram(env, 'sendMessage', { chat_id: u.id, text: msg });
+          sent.push({ id: u.id, name: u.first_name });
+        } catch (err: any) {
+          errors.push({ id: u.id, error: err?.message || String(err) });
+        }
+      }
+      return json({ ok: true, broadcast: 'morning_weather', sent, errors, usersTotal: usersRes.results?.length ?? 0 });
     }
     let t: any = null;
     let routesCount = 0;
