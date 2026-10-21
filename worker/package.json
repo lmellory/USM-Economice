@@ -5,7 +5,7 @@
   "type": "module",
   "scripts": {
     "typecheck": "tsc --noEmit -p tsconfig.json",
-    "deploy": "wrangler deploy",
+    "deploy": "node ../node_modules/wrangler/wrangler-dist/cli.js deploy --keep-vars",
     "migrate": "wrangler d1 migrations apply usm-life --remote",
     "migrate:turso": "node scripts/migrate-turso.mjs",
     "import:turso": "node scripts/import-turso.mjs"

@@ -77,7 +77,7 @@ Cloudflare сам устанавливает зависимости, выпол�
 
 В корне проекта скопируй `.env.local.example` в `.env.local`, заполни `BOT_TOKEN`, `TELEGRAM_WEBHOOK_SECRET` и `WORKER_URL` (`https://usm-life.<твой-поддомен>.workers.dev`). Этот файл исключён из Git.
 
-Установи Node.js 20+ с [официального сайта](https://nodejs.org/) и открой PowerShell в корне проекта. Выполни:
+Установи Node.js 22.18+ с [официального сайта](https://nodejs.org/) и открой PowerShell в корне проекта. Выполни:
 
 ```powershell
 node --env-file=.env.local scripts/set-webhook.mjs
@@ -171,3 +171,10 @@ node --env-file=.env.local scripts/set-webhook.mjs
 Публичный `/health` теперь только читает состояние. Параметры
 `broadcast_weather`, `refresh`, `refresh_stops` не запускают действия.
 Для сообщений используется только API администратора с Telegram-авторизацией.
+
+## Ошибка Windows: spawn EPERM при загрузке vite.config.ts
+
+В стандартные команды сборки и разработки добавлен `--configLoader native`.
+После обновления проекта достаточно выполнить из корня `npm run deploy`.
+Для текущей рабочей базы `npm run migrate` использует Turso.
+Повторно применённые миграции пропускаются автоматически.

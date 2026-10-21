@@ -3,8 +3,8 @@
   "version": "1.0.0",
   "type": "module",
   "scripts": {
-    "dev": "vite --host 0.0.0.0",
-    "build": "tsc -b && vite build",
+    "dev": "cd ../.. && npm run dev",
+    "build": "cd ../.. && npm run build",
     "typecheck": "tsc --noEmit -p tsconfig.json"
   },
   "dependencies": {

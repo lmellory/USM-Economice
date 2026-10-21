@@ -7,16 +7,18 @@
     "worker"
   ],
   "scripts": {
-    "dev": "npm run dev -w @usm/web",
-    "build": "npm run build -w @usm/web",
+    "dev": "vite apps/web --host 0.0.0.0 --config apps/web/vite.config.ts --configLoader native",
+    "build": "tsc -b apps/web/tsconfig.json && vite build apps/web --config apps/web/vite.config.ts --configLoader native",
     "typecheck": "npm run typecheck -w @usm/shared && npm run typecheck -w @usm/web && npm run typecheck -w @usm/worker",
     "test": "vitest run",
     "format": "prettier --write .",
     "format:check": "prettier --check .",
-    "deploy:cloudflare": "npm run build -w @usm/web && npm run deploy -w @usm/worker",
+    "deploy:cloudflare": "npm run build && npm run deploy -w @usm/worker",
     "migrate:cloudflare": "npm run migrate -w @usm/worker",
     "migrate:turso": "npm run migrate:turso -w @usm/worker",
-    "import:turso": "npm run import:turso -w @usm/worker"
+    "import:turso": "npm run import:turso -w @usm/worker",
+    "deploy": "npm run deploy:cloudflare",
+    "migrate": "npm run migrate:turso"
   },
   "devDependencies": {
     "prettier": "^3.5.3",
@@ -30,5 +32,8 @@
     "esbuild@0.28.1": true,
     "esbuild@0.25.12": true,
     "workerd@1.20261006.1": true
+  },
+  "engines": {
+    "node": ">=22.18.0"
   }
 }
