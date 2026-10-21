@@ -1,4 +1,4 @@
-import { baseSchedule, toChisinauDate } from '@usm/shared';
+import { baseSchedule } from '@usm/shared';
 import { verifyInitData } from './auth.js';
 import {
   ensureClassesPopulated,
@@ -9,49 +9,35 @@ import {
 } from './classes.js';
 import { createDb } from './db.js';
 import { handleHomework, json } from './homework.js';
-import { buildMorningWeatherMessage, notificationTick, telegram } from './notifications.js';
+import { notificationTick } from './notifications.js';
 import { dbSettings, validatedSettings } from './settings.js';
-import { saveTransit, syncTranzyStops, transit } from './transit.js';
+import { saveTransit, transit } from './transit.js';
 import { getUserCommuteOptions, handleTransitRoutes } from './commute.js';
 import { handleTripPlan } from './trip-plan.js';
 import { Env } from './types.js';
 import { handleWebhook } from './webhook.js';
-import { handleAdminBroadcast, handleAdminStats, isUserAdmin } from './admin.js';
+import {
+  handleAdminBroadcast,
+  handleAdminHistory,
+  handleAdminStats,
+  isUserAdmin,
+} from './admin.js';
 
 async function apiRequest(request: Request, env: Env, path: string): Promise<Response> {
   const db = createDb(env);
 
   if (path === '/health') {
-    const url = new URL(request.url);
-    if (url.searchParams.has('refresh')) {
-      try { await saveTransit(env); } catch {}
-    }
-    if (url.searchParams.has('refresh_stops')) {
-      try { await syncTranzyStops(env); } catch {}
-    }
-    if (url.searchParams.has('broadcast_weather')) {
-      const today = toChisinauDate(new Date());
-      const usersRes = await db.prepare('SELECT id, first_name FROM users').all<any>();
-      const sent: any[] = [];
-      const errors: any[] = [];
-      for (const u of usersRes.results || []) {
-        try {
-          const msg = await buildMorningWeatherMessage(env, String(u.id), today, u.first_name);
-          await telegram(env, 'sendMessage', { chat_id: u.id, text: msg });
-          sent.push({ id: u.id, name: u.first_name });
-        } catch (err: any) {
-          errors.push({ id: u.id, error: err?.message || String(err) });
-        }
-      }
-      return json({ ok: true, broadcast: 'morning_weather', sent, errors, usersTotal: usersRes.results?.length ?? 0 });
-    }
+    // Public health checks are read-only. Broadcasts require authenticated admin routes.
+    if (request.method !== 'GET') return json({ error: 'Метод не поддерживается.' }, 405);
     let t: any = null;
     let routesCount = 0;
     let stopsPresent = false;
     let dbStatus = 'ok';
     try {
       t = await db.prepare('SELECT * FROM transit_state WHERE id=1').first<any>();
-      const routes = await db.prepare('SELECT route_id, route_short_name, route_type FROM tranzy_routes LIMIT 50').all<any>();
+      const routes = await db
+        .prepare('SELECT route_id, route_short_name, route_type FROM tranzy_routes LIMIT 50')
+        .all<any>();
       routesCount = routes.results?.length ?? 0;
       const stopsRow = await db.prepare('SELECT 1 FROM tranzy_stops LIMIT 1').all<any>();
       stopsPresent = (stopsRow.results?.length ?? 0) > 0;
@@ -63,9 +49,8 @@ async function apiRequest(request: Request, env: Env, path: string): Promise<Res
       ok: true,
       service: 'usm-life-worker',
       dbBackend: db.backend,
-      dbStatus,
-      d1Status: dbStatus,
-      transit: t,
+      dbStatus: dbStatus === 'ok' ? 'ok' : 'unavailable',
+      transit: t ? { available: Boolean(t.available), checkedAt: t.checked_at } : null,
       routesCount,
       stopsPresent,
       routes: [],
@@ -93,12 +78,14 @@ async function apiRequest(request: Request, env: Env, path: string): Promise<Res
 
   try {
     await db.batch([
-      db.prepare(
-        'INSERT INTO users(id,first_name) VALUES(?,?) ON CONFLICT(id) DO UPDATE SET first_name=excluded.first_name'
-      ).bind(String(user.id), user.first_name || ''),
-      db.prepare('INSERT INTO settings(user_id) VALUES(?) ON CONFLICT(user_id) DO NOTHING').bind(
-        String(user.id)
-      ),
+      db
+        .prepare(
+          'INSERT INTO users(id,first_name) VALUES(?,?) ON CONFLICT(id) DO UPDATE SET first_name=excluded.first_name'
+        )
+        .bind(String(user.id), user.first_name || ''),
+      db
+        .prepare('INSERT INTO settings(user_id) VALUES(?) ON CONFLICT(user_id) DO NOTHING')
+        .bind(String(user.id)),
     ]);
   } catch (userDbErr) {
     console.warn('Failed to ensure user/settings in DB:', userDbErr);
@@ -117,15 +104,20 @@ async function apiRequest(request: Request, env: Env, path: string): Promise<Res
 
       const [sRow, homework, classRows, excRows, tRow] = await Promise.all([
         db.prepare('SELECT * FROM settings WHERE user_id=?').bind(String(user.id)).first(),
-        db.prepare(
-          'SELECT * FROM homework WHERE user_id=? ORDER BY completed ASC, CASE WHEN due_at IS NULL THEN 1 ELSE 0 END, due_at ASC, created_at DESC'
-        )
+        db
+          .prepare(
+            'SELECT * FROM homework WHERE user_id=? ORDER BY completed ASC, CASE WHEN due_at IS NULL THEN 1 ELSE 0 END, due_at ASC, created_at DESC'
+          )
           .bind(String(user.id))
           .all(),
-        db.prepare('SELECT * FROM classes WHERE user_id=? ORDER BY day ASC, start ASC, position ASC')
+        db
+          .prepare(
+            'SELECT * FROM classes WHERE user_id=? ORDER BY day ASC, start ASC, position ASC'
+          )
           .bind(String(user.id))
           .all(),
-        db.prepare('SELECT * FROM schedule_exceptions WHERE user_id=? ORDER BY date ASC')
+        db
+          .prepare('SELECT * FROM schedule_exceptions WHERE user_id=? ORDER BY date ASC')
           .bind(String(user.id))
           .all(),
         db.prepare('SELECT * FROM transit_state WHERE id=1').first<any>(),
@@ -139,6 +131,10 @@ async function apiRequest(request: Request, env: Env, path: string): Promise<Res
       commuteOptions = await getUserCommuteOptions(env, String(user.id));
     } catch (d1Err) {
       console.warn('DB bootstrap query failed:', d1Err);
+      return json(
+        { error: 'Не удалось загрузить твои данные. Попробуй открыть приложение ещё раз.' },
+        503
+      );
     }
 
     const t = transitRow
@@ -164,8 +160,8 @@ async function apiRequest(request: Request, env: Env, path: string): Promise<Res
     return json({
       settings: dbSettings(settingsRow),
       homework: homeworkResults,
-      schedule: classesList.length > 0 ? classesList : baseSchedule,
-      classes: classesList.length > 0 ? classesList : baseSchedule,
+      schedule: classesList,
+      classes: classesList,
       exceptions: exceptionsList,
       transit: t,
       commuteOptions,
@@ -176,6 +172,10 @@ async function apiRequest(request: Request, env: Env, path: string): Promise<Res
 
   if (path === '/api/admin/stats' && request.method === 'GET') {
     return handleAdminStats(request, env, String(user.id));
+  }
+
+  if (path === '/api/admin/broadcasts' && request.method === 'GET') {
+    return handleAdminHistory(request, env, String(user.id));
   }
 
   if (path === '/api/admin/broadcast' && request.method === 'POST') {
@@ -216,23 +216,18 @@ async function apiRequest(request: Request, env: Env, path: string): Promise<Res
       if (!entries.length) {
         return json(
           dbSettings(
-            await db.prepare('SELECT * FROM settings WHERE user_id=?')
-              .bind(String(user.id))
-              .first()
+            await db.prepare('SELECT * FROM settings WHERE user_id=?').bind(String(user.id)).first()
           )
         );
       }
       const sets = entries.map(([col]) => `${col}=?`).join(',');
-      await db.prepare(
-        `UPDATE settings SET ${sets},updated_at=CURRENT_TIMESTAMP WHERE user_id=?`
-      )
+      await db
+        .prepare(`UPDATE settings SET ${sets},updated_at=CURRENT_TIMESTAMP WHERE user_id=?`)
         .bind(...entries.map(([, v]) => v), String(user.id))
         .run();
       return json(
         dbSettings(
-          await db.prepare('SELECT * FROM settings WHERE user_id=?')
-            .bind(String(user.id))
-            .first()
+          await db.prepare('SELECT * FROM settings WHERE user_id=?').bind(String(user.id)).first()
         )
       );
     } catch (err: any) {
@@ -292,9 +287,7 @@ export default {
     ctx.waitUntil(
       Promise.allSettled([
         (async () => {
-          const last = await db.prepare(
-            'SELECT checked_at FROM transit_state WHERE id=1'
-          ).first<{
+          const last = await db.prepare('SELECT checked_at FROM transit_state WHERE id=1').first<{
             checked_at: string;
           }>();
           const minutes = Math.max(1, Number(env.TRANZY_REFRESH_MINUTES) || 5);

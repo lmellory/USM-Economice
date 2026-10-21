@@ -16,6 +16,9 @@ export async function request<T = any>(path: string, options: RequestInit = {}):
       'x-telegram-init-data': initData,
       ...options.headers,
     },
+    signal:
+      options.signal ??
+      AbortSignal.timeout(path.startsWith('/api/admin/broadcast') ? 90000 : 20000),
   });
 
   const payload = await response.json().catch(() => ({}));

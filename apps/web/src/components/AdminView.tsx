@@ -1,360 +1,473 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import {
-  AlertCircle,
   ArrowLeft,
-  Bell,
-  Bus,
   CheckCircle2,
-  ChevronRight,
-  Clock,
-  Crown,
   Eye,
   Loader2,
   MessageSquare,
-  Moon,
   RefreshCw,
+  Search,
   Send,
-  ShieldAlert,
-  Sparkles,
-  Sun,
   Users,
+  X,
 } from 'lucide-react';
+import {
+  ADMIN_MESSAGE_LIMIT,
+  AdminUser,
+  BroadcastInput,
+  BroadcastResult,
+  BroadcastSummary,
+  BroadcastType,
+} from '@usm/shared';
 import { request, vibrate } from '../lib/api.js';
+import { TZ } from '../lib/time.js';
 
-interface AdminViewProps {
-  onBack: () => void;
+interface Stats {
+  totalUsers: number;
+  currentUserId: string;
+  users: AdminUser[];
 }
+const typeLabel = (type: BroadcastType) =>
+  type === 'custom' ? 'Сообщение' : type === 'weather' ? 'Утренняя сводка' : 'План на завтра';
+const formatDate = (date: string) =>
+  new Date(date.includes('T') ? date : date.replace(' ', 'T') + 'Z').toLocaleString('ru-RU', {
+    timeZone: TZ,
+    day: 'numeric',
+    month: 'short',
+    hour: '2-digit',
+    minute: '2-digit',
+  });
 
-export function AdminView({ onBack }: AdminViewProps) {
-  const [stats, setStats] = useState<any>(null);
-  const [loadingStats, setLoadingStats] = useState(true);
-  const [error, setError] = useState<string | null>(null);
-
-  // Broadcast state
-  const [customMsg, setCustomMsg] = useState('');
+export function AdminView({ onBack }: { onBack: () => void }) {
+  const [stats, setStats] = useState<Stats | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState('');
+  const [historyError, setHistoryError] = useState('');
+  const [message, setMessage] = useState('');
+  const [audience, setAudience] = useState<BroadcastInput['audience']>('self');
+  const [selectedIds, setSelectedIds] = useState<string[]>([]);
+  const [search, setSearch] = useState('');
+  const [preview, setPreview] = useState<BroadcastInput | null>(null);
   const [sending, setSending] = useState(false);
-  const [broadcastResult, setBroadcastResult] = useState<any>(null);
-  const [previewMode, setPreviewMode] = useState(false);
-  const [selectedUserForSingle, setSelectedUserForSingle] = useState<string>('');
+  const [activeInput, setActiveInput] = useState<BroadcastInput | null>(null);
+  const [result, setResult] = useState<BroadcastResult | null>(null);
+  const [history, setHistory] = useState<BroadcastSummary[]>([]);
+  const sendingRef = useRef(false);
+  const mountedRef = useRef(true);
+  const composerRef = useRef<HTMLTextAreaElement>(null);
+  const previewRef = useRef<HTMLElement>(null);
+  useEffect(() => {
+    if (preview) previewRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  }, [preview]);
 
-  const loadStats = async () => {
-    setLoadingStats(true);
-    setError(null);
+  const loadHistory = async () => {
     try {
-      const res = await request('/api/admin/stats');
-      setStats(res);
-    } catch (e: any) {
-      setError(e.message || 'Ошибка загрузки статистики');
-    } finally {
-      setLoadingStats(false);
+      const data = await request<{ broadcasts: BroadcastSummary[] }>('/api/admin/broadcasts');
+      if (mountedRef.current) {
+        setHistory(data.broadcasts);
+        setHistoryError('');
+      }
+    } catch {
+      if (mountedRef.current)
+        setHistoryError(
+          'Не удалось загрузить журнал. Проверь подключение и обновление базы данных.'
+        );
     }
   };
-
+  const load = async () => {
+    setLoading(true);
+    setError('');
+    try {
+      const data = await request<Stats>('/api/admin/stats');
+      if (mountedRef.current) setStats(data);
+    } catch (e: any) {
+      if (mountedRef.current) setError(e.message || 'Не удалось загрузить пользователей.');
+    } finally {
+      if (mountedRef.current) setLoading(false);
+    }
+    await loadHistory();
+  };
   useEffect(() => {
-    loadStats();
+    mountedRef.current = true;
+    void load();
+    return () => {
+      mountedRef.current = false;
+    };
   }, []);
 
-  const handleBroadcast = async (type: 'custom' | 'weather' | 'evening', targetUserId?: string) => {
-    if (type === 'custom' && !customMsg.trim()) {
-      alert('Введи текст сообщения');
+  const validMessage = message.trim().length > 0 && message.trim().length <= ADMIN_MESSAGE_LIMIT;
+  const recipientLabel = (input: BroadcastInput) =>
+    input.audience === 'self'
+      ? 'Только тебе'
+      : input.audience === 'all'
+        ? `Всем пользователям (${stats?.totalUsers ?? 0})`
+        : input.targetUserIds.length === 1
+          ? stats?.users.find((u) => u.id === input.targetUserIds[0])?.first_name ||
+            'Выбранному пользователю'
+          : `Выбранным пользователям (${input.targetUserIds.length})`;
+  const prepare = (type: BroadcastType = 'custom', scope = audience) => {
+    if (sendingRef.current || !stats || (type === 'custom' && !validMessage)) return;
+    if (scope === 'selected' && !selectedIds.length) {
+      setError('Выбери хотя бы одного получателя.');
       return;
     }
-
-    const confirmText =
-      type === 'custom'
-        ? `Отправить сообщение ${targetUserId ? 'выбранному студенту' : `ВСЕМ студентам (${stats?.totalUsers || 0} чел.)`}?`
-        : type === 'weather'
-          ? `Разослать утреннюю сводку погоды ВСЕМ (${stats?.totalUsers || 0} чел.) прямо сейчас?`
-          : `Разослать вечерний план на завтра ВСЕМ (${stats?.totalUsers || 0} чел.) прямо сейчас?`;
-
-    if (!window.confirm(confirmText)) return;
-
+    setError('');
+    setPreview({
+      requestId: crypto.randomUUID(),
+      type,
+      message: type === 'custom' ? message.trim() : '',
+      audience: scope,
+      targetUserIds: scope === 'selected' ? [...selectedIds].sort() : [],
+    });
+  };
+  const send = async (input: BroadcastInput) => {
+    if (sendingRef.current) return;
+    sendingRef.current = true;
     setSending(true);
-    setBroadcastResult(null);
+    setError('');
+    setPreview(null);
+    setActiveInput(input);
+    setResult(null);
     vibrate();
-
     try {
-      const res = await request('/api/admin/broadcast', {
-        method: 'POST',
-        body: JSON.stringify({
-          type,
-          message: customMsg.trim(),
-          targetUserId: targetUserId || undefined,
-        }),
-      });
-      setBroadcastResult(res);
-      if (type === 'custom' && !targetUserId) {
-        setCustomMsg('');
-      }
-    } catch (err: any) {
-      alert(err.message || 'Ошибка отправки рассылки');
+      let last: BroadcastResult;
+      do {
+        last = await request<BroadcastResult>('/api/admin/broadcast', {
+          method: 'POST',
+          body: JSON.stringify(input),
+        });
+        if (mountedRef.current) setResult(last);
+        if (!last.complete)
+          await new Promise((resolve) => setTimeout(resolve, last.sendingCount ? 1500 : 200));
+      } while (!last.complete && mountedRef.current);
+      if (mountedRef.current && last.complete) setActiveInput(null);
+    } catch (e: any) {
+      if (mountedRef.current)
+        setError(
+          `${e.message || 'Отправка прервалась.'} Можно продолжить: подтверждённые отправки повторены не будут.`
+        );
     } finally {
-      setSending(false);
+      sendingRef.current = false;
+      if (mountedRef.current) {
+        setSending(false);
+        await loadHistory();
+      }
     }
   };
-
-  const addPrefix = (prefix: string) => {
-    setCustomMsg((prev) => `${prefix} ${prev}`.trim());
-    vibrate();
+  const toggleUser = (id: string) => {
+    setAudience('selected');
+    setPreview(null);
+    setSelectedIds((ids) =>
+      ids.includes(id) ? ids.filter((x) => x !== id) : ids.length < 100 ? [...ids, id] : ids
+    );
   };
+  const query = search.trim().toLocaleLowerCase('ru');
+  const filteredUsers =
+    stats?.users.filter((u) => `${u.first_name} ${u.id}`.toLocaleLowerCase('ru').includes(query)) ??
+    [];
 
   return (
-    <div className="admin-container">
-      {/* Top Header */}
-      <div className="admin-top-bar">
-        <button className="admin-back-btn" onClick={onBack} title="Назад">
-          <ArrowLeft size={18} />
-          <span>Назад</span>
+    <div className="admin-container admin-messages">
+      <header className="admin-top-bar">
+        <button type="button" className="admin-back-btn" onClick={onBack}>
+          <ArrowLeft size={18} /> Назад
         </button>
-        <div className="admin-badge-pill">
-          <Crown size={14} className="crown-icon" />
-          <span>Панель администратора</span>
-        </div>
-      </div>
-
+        <span className="admin-badge-pill">Администратор</span>
+      </header>
       <div className="admin-hero">
-        <h2>Управление USM Life</h2>
-        <p>Рассылка объявлений, триггеры сводок и контроль пользователей.</p>
+        <span className="eyebrow">СВЯЗЬ С ПОЛЬЗОВАТЕЛЯМИ</span>
+        <h1>Сообщения от бота</h1>
+        <p>Личные сообщения и объявления — с проверкой получателей перед отправкой.</p>
       </div>
-
-      {/* Stats Cards */}
-      <div className="admin-stats-grid">
-        <div className="admin-stat-card">
-          <div className="admin-stat-icon users">
-            <Users size={20} />
-          </div>
-          <div className="admin-stat-content">
-            <div className="stat-label">Студентов в боте</div>
-            <div className="stat-value">
-              {loadingStats ? <Loader2 size={16} className="spin" /> : stats?.totalUsers ?? '—'}
-            </div>
-          </div>
+      {error && (
+        <div className="admin-inline-error" role="alert">
+          {error}
         </div>
-
-        <div className="admin-stat-card">
-          <div className="admin-stat-icon transit">
-            <Bus size={20} />
-          </div>
-          <div className="admin-stat-content">
-            <div className="stat-label">Машин на линии</div>
-            <div className="stat-value">
-              {loadingStats ? (
-                <Loader2 size={16} className="spin" />
-              ) : (
-                stats?.transit?.vehicleCount ?? '—'
-              )}
-            </div>
-          </div>
+      )}
+      <div className="admin-overview">
+        <Users size={20} />
+        <div>
+          <strong>{loading ? 'Загружаем…' : (stats?.totalUsers ?? '—')}</strong>
+          <span>пользователей</span>
         </div>
-
-        <div className="admin-stat-card">
-          <div className="admin-stat-icon system">
-            <Sparkles size={20} />
-          </div>
-          <div className="admin-stat-content">
-            <div className="stat-label">Система</div>
-            <div className="stat-value-badge">
-              <span className="dot-pulse" />
-              <span>В сети</span>
-            </div>
-          </div>
-        </div>
+        <button
+          type="button"
+          onClick={() => void load()}
+          disabled={loading || sending}
+          aria-label="Обновить список"
+        >
+          <RefreshCw size={18} />
+        </button>
       </div>
-
-      {/* Broadcast Result Toast */}
-      {broadcastResult && (
-        <div className="admin-result-banner">
-          <CheckCircle2 size={18} className="success-icon" />
-          <div>
-            <b>Рассылка завершена:</b> успешно доставлено{' '}
-            <span className="highlight">{broadcastResult.sentCount}</span> из{' '}
-            {broadcastResult.totalTargeted} чел.
-            {broadcastResult.failedCount > 0 && (
-              <span className="error-note"> ({broadcastResult.failedCount} ошибок)</span>
-            )}
-          </div>
-          <button className="close-banner-btn" onClick={() => setBroadcastResult(null)}>
-            ×
+      {activeInput && !sending && (
+        <div className="admin-section">
+          <p>Отправка прервалась. Продолжить оставшимся получателям?</p>
+          <button
+            type="button"
+            className="admin-action-btn secondary"
+            onClick={() => void send(activeInput)}
+          >
+            Продолжить отправку
           </button>
         </div>
       )}
-
-      {/* Custom Broadcast Section */}
       <section className="admin-section">
-        <div className="section-title-wrap">
-          <MessageSquare size={18} className="title-icon" />
-          <h3>Кастомная рассылка студентам</h3>
+        <h2>
+          <MessageSquare size={18} /> Новое сообщение
+        </h2>
+        <label className="admin-field-label" htmlFor="admin-message">
+          Текст сообщения
+        </label>
+        <textarea
+          ref={composerRef}
+          id="admin-message"
+          className="admin-textarea"
+          rows={5}
+          placeholder="Напиши объявление или личное сообщение…"
+          value={message}
+          disabled={sending}
+          maxLength={ADMIN_MESSAGE_LIMIT}
+          onChange={(e) => {
+            setMessage(e.target.value);
+            setPreview(null);
+          }}
+        />
+        <div className="admin-character-count">
+          {message.length} / {ADMIN_MESSAGE_LIMIT}
         </div>
-        <p className="section-desc">
-          Сообщение придёт в Telegram от бота всем зарегистрированным пользователям.
+        <fieldset className="admin-audience" disabled={sending || loading || !stats}>
+          <legend>Кому отправить</legend>
+          {(
+            [
+              ['self', 'Только мне'],
+              ['selected', `Выбранным (${selectedIds.length})`],
+              ['all', 'Всем'],
+            ] as const
+          ).map(([value, label]) => (
+            <button
+              type="button"
+              key={value}
+              aria-pressed={audience === value}
+              className={audience === value ? 'selected' : ''}
+              onClick={() => {
+                setAudience(value);
+                setPreview(null);
+              }}
+            >
+              {label}
+            </button>
+          ))}
+        </fieldset>
+        <p className="admin-recipient-note">
+          {audience === 'self'
+            ? 'Сообщение получишь только ты — удобно для проверки.'
+            : audience === 'all'
+              ? `Объявление получат все ${stats?.totalUsers ?? 0} пользователей бота.`
+              : 'Отметь получателей в списке ниже. Можно искать по имени или Telegram ID.'}
         </p>
-
-        {/* Quick Tag Chips */}
-        <div className="admin-chips">
-          <button type="button" onClick={() => addPrefix('📢 [Объявление]')}>
-            📢 Объявление
-          </button>
-          <button type="button" onClick={() => addPrefix('⚠️ [Важно]')}>
-            ⚠️ Важно
-          </button>
-          <button type="button" onClick={() => addPrefix('🎉 [Новость]')}>
-            🎉 Новость
-          </button>
-          <button type="button" onClick={() => addPrefix('📚 [Деканат]')}>
-            📚 Деканат
-          </button>
-          <button type="button" onClick={() => addPrefix('⏰ [Перенос пары]')}>
-            ⏰ Перенос пары
-          </button>
-        </div>
-
-        {/* Text Area */}
-        <div className="admin-textarea-wrap">
-          <textarea
-            className="admin-textarea"
-            rows={4}
-            placeholder="Введи текст сообщения для всех студентов группы..."
-            value={customMsg}
-            onChange={(e) => setCustomMsg(e.target.value)}
-          />
-          <div className="textarea-footer">
-            <span>{customMsg.length} символов</span>
-            {customMsg.length > 0 && (
-              <button
-                type="button"
-                className="preview-toggle"
-                onClick={() => setPreviewMode(!previewMode)}
-              >
-                <Eye size={13} />
-                <span>{previewMode ? 'Скрыть превью' : 'Предпросмотр'}</span>
-              </button>
-            )}
-          </div>
-        </div>
-
-        {/* Live Preview Box */}
-        {previewMode && customMsg.trim() && (
-          <div className="telegram-preview-box">
-            <div className="preview-label">Превью в Telegram:</div>
-            <div className="preview-bubble">{customMsg}</div>
-          </div>
-        )}
-
         <button
+          type="button"
           className="admin-action-btn primary"
-          disabled={sending || !customMsg.trim()}
-          onClick={() => handleBroadcast('custom')}
+          disabled={
+            sending ||
+            loading ||
+            !stats ||
+            !validMessage ||
+            (audience === 'selected' && !selectedIds.length)
+          }
+          onClick={() => prepare()}
         >
-          {sending ? (
-            <>
-              <Loader2 size={16} className="spin" /> Отправка...
-            </>
-          ) : (
-            <>
-              <Send size={16} /> Отправить всем ({stats?.totalUsers || 0} чел.)
-            </>
-          )}
+          <Eye size={17} /> Проверить перед отправкой
         </button>
       </section>
-
-      {/* Instant System Triggers */}
-      <section className="admin-section">
-        <div className="section-title-wrap">
-          <Clock size={18} className="title-icon" />
-          <h3>Мгновенный запуск сводок</h3>
-        </div>
-        <p className="section-desc">
-          Принудительно протестировать отправку ботом утренней или вечерней сводки.
-        </p>
-
-        <div className="triggers-grid">
-          <div className="trigger-card">
-            <div className="trigger-icon weather">
-              <Sun size={20} />
-            </div>
-            <div className="trigger-info">
-              <b>Утренняя сводка погоды</b>
-              <p>Погода сейчас + к выходу + что надеть + пожелание на день</p>
-            </div>
+      {preview && (
+        <section
+          ref={previewRef}
+          className="admin-section admin-confirmation"
+          aria-labelledby="broadcast-preview-title"
+        >
+          <div className="admin-confirmation-head">
+            <h2 id="broadcast-preview-title">Проверь сообщение</h2>
             <button
-              className="admin-action-btn secondary"
-              disabled={sending}
-              onClick={() => handleBroadcast('weather')}
+              type="button"
+              onClick={() => setPreview(null)}
+              aria-label="Закрыть предпросмотр"
             >
-              <Send size={14} /> Запустить тест
+              <X size={20} />
             </button>
           </div>
-
-          <div className="trigger-card">
-            <div className="trigger-icon evening">
-              <Moon size={20} />
-            </div>
-            <div className="trigger-info">
-              <b>Вечерний план на завтра</b>
-              <p>Первая пара, аудитория, время подъёма, сон и ДЗ</p>
-            </div>
-            <button
-              className="admin-action-btn secondary"
-              disabled={sending}
-              onClick={() => handleBroadcast('evening')}
-            >
-              <Send size={14} /> Запустить тест
-            </button>
+          <p>
+            <strong>Получатели:</strong> {recipientLabel(preview)}
+          </p>
+          {preview.audience === 'selected' && (
+            <p className="admin-recipient-names">
+              {preview.targetUserIds
+                .map(
+                  (id) =>
+                    `${stats?.users.find((u) => u.id === id)?.first_name || 'Без имени'} · ${id}`
+                )
+                .join(', ')}
+            </p>
+          )}
+          <div className="preview-bubble">
+            {preview.type === 'custom'
+              ? preview.message
+              : `${typeLabel(preview.type)} будет рассчитана по личным настройкам получателя.`}
           </div>
-        </div>
-      </section>
-
-      {/* Users List */}
-      <section className="admin-section">
-        <div className="section-title-wrap">
-          <Users size={18} className="title-icon" />
-          <h3>Список пользователей ({stats?.totalUsers || 0})</h3>
-          <button className="refresh-icon-btn" onClick={loadStats} title="Обновить список">
-            <RefreshCw size={14} className={loadingStats ? 'spin' : ''} />
+          <button
+            type="button"
+            className="admin-action-btn primary"
+            disabled={sending}
+            onClick={() => void send(preview)}
+          >
+            <Send size={17} /> Подтвердить отправку
           </button>
-        </div>
-
-        {loadingStats ? (
-          <div className="admin-loading-box">
-            <Loader2 size={24} className="spin" />
-            <span>Загрузка списка пользователей...</span>
-          </div>
-        ) : stats?.users?.length ? (
+          <button type="button" className="admin-cancel" onClick={() => setPreview(null)}>
+            Вернуться к редактированию
+          </button>
+        </section>
+      )}
+      {(sending || result) && (
+        <section className="admin-section" aria-live="polite">
+          <h2>
+            {sending ? <Loader2 size={18} className="spin" /> : <CheckCircle2 size={18} />}
+            {sending
+              ? 'Отправляем…'
+              : result?.failedCount || result?.unknownCount
+                ? 'Отправка завершена с замечаниями'
+                : 'Отправка завершена'}
+          </h2>
+          {result && (
+            <>
+              <p>
+                Telegram принял {result.sentCount} из {result.totalTargeted} сообщений.
+              </p>
+              <progress
+                value={result.totalTargeted - result.pendingCount - result.sendingCount}
+                max={Math.max(1, result.totalTargeted)}
+              />
+              {result.failedCount > 0 && <p>Не отправлено: {result.failedCount}</p>}
+              {result.unknownCount > 0 && (
+                <p>Доставка не подтверждена: {result.unknownCount}. Автоматического повтора нет.</p>
+              )}
+              {result.failed.map((item) => (
+                <p className="admin-delivery-error" key={item.id}>
+                  {item.name || item.id}: {item.error}
+                </p>
+              ))}
+            </>
+          )}
+        </section>
+      )}
+      <section className="admin-section">
+        <h2>
+          <Users size={18} /> Пользователи
+        </h2>
+        <label className="admin-search">
+          <Search size={17} />
+          <input
+            aria-label="Поиск пользователей"
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            placeholder="Имя или Telegram ID"
+          />
+        </label>
+        {loading ? (
+          <p role="status">Загружаем список…</p>
+        ) : !stats ? (
+          <p>Список недоступен. Нажми кнопку обновления.</p>
+        ) : !filteredUsers.length ? (
+          <p>Никого не найдено.</p>
+        ) : (
           <div className="admin-users-list">
-            {stats.users.map((u: any) => (
-              <div key={u.id} className="admin-user-item">
-                <div className="user-avatar">
-                  {(u.first_name?.[0] || 'С').toUpperCase()}
-                </div>
-                <div className="user-info">
-                  <div className="user-name">
-                    <b>{u.first_name || 'Без имени'}</b>
-                    {String(u.id) === '5067848442' && (
-                      <span className="owner-badge">Владелец</span>
-                    )}
-                  </div>
-                  <div className="user-id">ID: {u.id}</div>
-                </div>
-                <button
-                  className="send-single-btn"
-                  title="Отправить личное сообщение через бота"
-                  onClick={() => {
-                    const text = window.prompt(`Сообщение для ${u.first_name} (ID: ${u.id}):`);
-                    if (text && text.trim()) {
-                      setCustomMsg(text);
-                      handleBroadcast('custom', u.id);
+            {filteredUsers.map((user) => (
+              <div className="admin-user-item" key={user.id}>
+                <label className="admin-user-check">
+                  <input
+                    type="checkbox"
+                    checked={selectedIds.includes(user.id)}
+                    disabled={
+                      sending || (!selectedIds.includes(user.id) && selectedIds.length >= 100)
                     }
+                    onChange={() => toggleUser(user.id)}
+                    aria-label={`Выбрать ${user.first_name || user.id}`}
+                  />
+                  <span>
+                    <strong>{user.first_name || 'Без имени'}</strong>
+                    <small>
+                      ID: {user.id}
+                      {user.id === stats.currentUserId ? ' · это ты' : ''}
+                    </small>
+                  </span>
+                </label>
+                <button
+                  type="button"
+                  className="send-single-btn"
+                  disabled={sending}
+                  onClick={() => {
+                    setSelectedIds([user.id]);
+                    setAudience('selected');
+                    setPreview(null);
+                    composerRef.current?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                    composerRef.current?.focus();
                   }}
                 >
-                  <Send size={13} />
-                  <span>Написать</span>
+                  <MessageSquare size={15} /> Написать
                 </button>
               </div>
             ))}
           </div>
-        ) : (
-          <div className="admin-empty">Нет зарегистрированных пользователей</div>
         )}
+      </section>
+      <section className="admin-section">
+        <h2>Проверка автоматических сводок</h2>
+        <p className="section-desc">Эти тесты отправляются только тебе.</p>
+        <div className="admin-test-actions">
+          <button
+            type="button"
+            disabled={sending || loading || !stats}
+            onClick={() => prepare('weather', 'self')}
+          >
+            Утренняя сводка
+          </button>
+          <button
+            type="button"
+            disabled={sending || loading || !stats}
+            onClick={() => prepare('evening', 'self')}
+          >
+            План на завтра
+          </button>
+        </div>
+      </section>
+      <section className="admin-section">
+        <h2>Последние отправки</h2>
+        {historyError && <p role="status">{historyError}</p>}
+        {!history.length && !historyError && <p>Здесь появятся результаты отправки сообщений.</p>}
+        {history.map((job) => (
+          <article className="admin-history-item" key={job.id}>
+            <div>
+              <strong>{typeLabel(job.type)}</strong>
+              <time>{formatDate(job.created_at)}</time>
+            </div>
+            <p>{job.message || typeLabel(job.type)}</p>
+            <small>
+              Принято Telegram: {job.sentCount}/{job.totalTargeted} · Ошибок: {job.failedCount}
+              {job.unknownCount > 0 ? ` · Не подтверждено: ${job.unknownCount}` : ''}
+            </small>
+            {!job.complete && (
+              <button
+                type="button"
+                disabled={sending}
+                onClick={() => {
+                  setPreview(job.input);
+                  window.scrollTo({ top: 0, behavior: 'smooth' });
+                }}
+              >
+                Проверить и продолжить ({job.pendingCount} осталось)
+              </button>
+            )}
+          </article>
+        ))}
       </section>
     </div>
   );

@@ -17,6 +17,7 @@ import { Toggle } from './Toggle.js';
 
 interface SettingsViewProps {
   settings: any;
+  saveState?: 'idle' | 'saving' | 'saved' | 'error';
   transit: any;
   save: (patch: any) => Promise<void>;
   onBack: () => void;
@@ -27,6 +28,7 @@ interface SettingsViewProps {
 
 export function SettingsView({
   settings,
+  saveState = 'idle',
   transit,
   save,
   onBack,
@@ -34,6 +36,14 @@ export function SettingsView({
   isAdmin,
   onOpenAdmin,
 }: SettingsViewProps) {
+  const [homeAddress, setHomeAddress] = useState(settings.home_address || '');
+  const [universityAddress, setUniversityAddress] = useState(settings.university_address || '');
+  const [numericDrafts, setNumericDrafts] = useState<Record<string, string>>({});
+  useEffect(() => setHomeAddress(settings.home_address || ''), [settings.home_address]);
+  useEffect(
+    () => setUniversityAddress(settings.university_address || ''),
+    [settings.university_address]
+  );
   const [dur, setDur] = useState<string>(
     settings.english_duration != null ? String(settings.english_duration) : ''
   );
@@ -66,8 +76,23 @@ export function SettingsView({
           type="number"
           min="0"
           step={step}
-          value={settings[key] ?? ''}
-          onChange={(e) => save({ [key]: Number(e.target.value) })}
+          value={numericDrafts[key] ?? settings[key] ?? ''}
+          onChange={(e) => setNumericDrafts((drafts) => ({ ...drafts, [key]: e.target.value }))}
+          onBlur={(e) => {
+            const value = e.target.value;
+            setNumericDrafts((drafts) => {
+              const next = { ...drafts };
+              delete next[key];
+              return next;
+            });
+            if (
+              value.trim() &&
+              Number.isFinite(Number(value)) &&
+              Number(value) >= 0 &&
+              Number(value) !== settings[key]
+            )
+              void save({ [key]: Number(value) });
+          }}
         />
         <span>{unit}</span>
       </div>
@@ -91,7 +116,16 @@ export function SettingsView({
         </button>
         <span className="eyebrow">ЛИЧНОЕ</span>
         <h1>Настройки</h1>
-        <p>Твои данные видны только тебе.</p>
+        <p>Настрой учебный день под себя.</p>
+        <p className={`save-status ${saveState}`} role="status" aria-live="polite">
+          {saveState === 'saving'
+            ? 'Сохраняем изменения…'
+            : saveState === 'saved'
+              ? 'Изменения сохранены'
+              : saveState === 'error'
+                ? 'Не удалось сохранить. Повтори изменение.'
+                : 'Изменения сохраняются автоматически'}
+        </p>
       </div>
 
       <div className="user-profile-badge">
@@ -288,7 +322,14 @@ export function SettingsView({
           подъём и свободное время до выхода.
         </p>
         <div style={{ marginBottom: 12 }}>
-          <span style={{ font: "600 12px/1 'Inter'", color: 'var(--muted)', display: 'block', marginBottom: 6 }}>
+          <span
+            style={{
+              font: "600 12px/1 'Inter'",
+              color: 'var(--muted)',
+              display: 'block',
+              marginBottom: 6,
+            }}
+          >
             Привычное время сна (засыпание)
           </span>
           <div className="duration-chips">
@@ -296,7 +337,11 @@ export function SettingsView({
               <button
                 key={t}
                 type="button"
-                className={settings.target_bedtime === t || (!settings.target_bedtime && t === '00:15') ? 'on' : ''}
+                className={
+                  settings.target_bedtime === t || (!settings.target_bedtime && t === '00:15')
+                    ? 'on'
+                    : ''
+                }
                 onClick={() => save({ target_bedtime: t, targetBedtime: t })}
               >
                 {t}
@@ -324,7 +369,8 @@ export function SettingsView({
         <label className="setting-field">
           Дом
           <input
-            value={settings.home_address || ''}
+            value={homeAddress}
+            onChange={(e) => setHomeAddress(e.target.value)}
             placeholder="Введи адрес дома"
             onBlur={(e) =>
               save({
@@ -337,7 +383,8 @@ export function SettingsView({
         <label className="setting-field">
           Университет
           <input
-            value={settings.university_address || ''}
+            value={universityAddress}
+            onChange={(e) => setUniversityAddress(e.target.value)}
             placeholder="Введи адрес университета"
             onBlur={(e) =>
               save({
@@ -365,13 +412,20 @@ export function SettingsView({
             <input
               type="number"
               min="0"
-              value={settings.reminder_minutes ?? 60}
+              value={numericDrafts.reminder_minutes ?? settings.reminder_minutes ?? 60}
               onChange={(e) =>
-                save({
-                  reminderMinutes: Number(e.target.value),
-                  reminder_minutes: Number(e.target.value),
-                })
+                setNumericDrafts((drafts) => ({ ...drafts, reminder_minutes: e.target.value }))
               }
+              onBlur={(e) => {
+                const value = e.target.value;
+                setNumericDrafts((drafts) => {
+                  const next = { ...drafts };
+                  delete next.reminder_minutes;
+                  return next;
+                });
+                if (value.trim() && Number.isFinite(Number(value)) && Number(value) >= 0)
+                  void save({ reminder_minutes: Number(value) });
+              }}
             />
             <span>мин</span>
           </div>

@@ -39,16 +39,27 @@ export function mapExceptionRow(row: any): ScheduleException {
 
 export async function ensureClassesPopulated(env: Env, userId: string): Promise<void> {
   const db = createDb(env);
-  const countRow = await db.prepare('SELECT COUNT(*) as c FROM classes WHERE user_id=?')
+  const initialized = await db
+    .prepare('SELECT schedule_initialized FROM settings WHERE user_id=?')
+    .bind(userId)
+    .first<{ schedule_initialized: number }>();
+  if (initialized?.schedule_initialized) return;
+  const countRow = await db
+    .prepare('SELECT COUNT(*) as c FROM classes WHERE user_id=?')
     .bind(userId)
     .first<{ c: number }>();
 
   if (countRow && countRow.c > 0) {
+    await db
+      .prepare('UPDATE settings SET schedule_initialized=1 WHERE user_id=?')
+      .bind(userId)
+      .run();
     return;
   }
 
   // Check existing schedule_overrides
-  const override = await db.prepare('SELECT schedule FROM schedule_overrides WHERE user_id=?')
+  const override = await db
+    .prepare('SELECT schedule FROM schedule_overrides WHERE user_id=?')
     .bind(userId)
     .first<any>();
 
@@ -71,28 +82,30 @@ export async function ensureClassesPopulated(env: Env, userId: string): Promise<
       (c.place && c.place.includes('Ismail')) ||
       (c.title && (c.title.includes('физ') || c.title.includes('спорт')));
     const dest = isSport ? 'sports' : 'university';
-    return db.prepare(
-      'INSERT INTO classes(id,user_id,day,start,end,title,kind,place,parity,online,duration_unknown,destination,position) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?)'
-    ).bind(
-      classId,
-      userId,
-      c.day,
-      c.start,
-      c.end || null,
-      c.title,
-      c.kind || null,
-      c.place || '',
-      c.parity || null,
-      c.online ? 1 : 0,
-      c.durationUnknown || c.duration_unknown ? 1 : 0,
-      dest,
-      c.position !== undefined ? c.position : index
-    );
+    return db
+      .prepare(
+        'INSERT INTO classes(id,user_id,day,start,end,title,kind,place,parity,online,duration_unknown,destination,position) SELECT ?,?,?,?,?,?,?,?,?,?,?,?,? WHERE EXISTS (SELECT 1 FROM settings WHERE user_id=? AND schedule_initialized=0)'
+      )
+      .bind(
+        classId,
+        userId,
+        c.day,
+        c.start,
+        c.end || null,
+        c.title,
+        c.kind || null,
+        c.place || '',
+        c.parity || null,
+        c.online ? 1 : 0,
+        c.durationUnknown || c.duration_unknown ? 1 : 0,
+        dest,
+        c.position !== undefined ? c.position : index,
+        userId
+      );
   });
 
-  if (batch.length > 0) {
-    await db.batch(batch);
-  }
+  batch.push(db.prepare('UPDATE settings SET schedule_initialized=1 WHERE user_id=?').bind(userId));
+  await db.batch(batch);
 }
 
 const TIME_RE = /^\d{2}:\d{2}$/;
@@ -113,9 +126,8 @@ export async function handleClasses(
   const db = createDb(env);
   if (request.method === 'GET') {
     await ensureClassesPopulated(env, userId);
-    const rows = await db.prepare(
-      'SELECT * FROM classes WHERE user_id=? ORDER BY day ASC, start ASC, position ASC'
-    )
+    const rows = await db
+      .prepare('SELECT * FROM classes WHERE user_id=? ORDER BY day ASC, start ASC, position ASC')
       .bind(userId)
       .all();
     return json((rows.results || []).map(mapClassRow));
@@ -162,9 +174,10 @@ export async function handleClasses(
     const position = Number.isInteger(body.position) ? body.position : 0;
     const destination = body.destination === 'sports' ? 'sports' : 'university';
 
-    await db.prepare(
-      'INSERT INTO classes(id,user_id,day,start,end,title,kind,place,parity,online,duration_unknown,destination,position) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?)'
-    )
+    await db
+      .prepare(
+        'INSERT INTO classes(id,user_id,day,start,end,title,kind,place,parity,online,duration_unknown,destination,position) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?)'
+      )
       .bind(
         classId,
         userId,
@@ -182,7 +195,8 @@ export async function handleClasses(
       )
       .run();
 
-    const created = await db.prepare('SELECT * FROM classes WHERE id=? AND user_id=?')
+    const created = await db
+      .prepare('SELECT * FROM classes WHERE id=? AND user_id=?')
       .bind(classId, userId)
       .first();
 
@@ -197,7 +211,8 @@ export async function handleClasses(
       return json({ error: 'Некорректные данные JSON.' }, 400);
     }
 
-    const existing = await db.prepare('SELECT * FROM classes WHERE id=? AND user_id=?')
+    const existing = await db
+      .prepare('SELECT * FROM classes WHERE id=? AND user_id=?')
       .bind(id, userId)
       .first();
 
@@ -237,9 +252,10 @@ export async function handleClasses(
     const position = Number.isInteger(body.position) ? body.position : 0;
     const destination = body.destination === 'sports' ? 'sports' : 'university';
 
-    await db.prepare(
-      'UPDATE classes SET day=?,start=?,end=?,title=?,kind=?,place=?,parity=?,online=?,duration_unknown=?,destination=?,position=?,updated_at=CURRENT_TIMESTAMP WHERE id=? AND user_id=?'
-    )
+    await db
+      .prepare(
+        'UPDATE classes SET day=?,start=?,end=?,title=?,kind=?,place=?,parity=?,online=?,duration_unknown=?,destination=?,position=?,updated_at=CURRENT_TIMESTAMP WHERE id=? AND user_id=?'
+      )
       .bind(
         day,
         body.start,
@@ -257,7 +273,8 @@ export async function handleClasses(
       )
       .run();
 
-    const updated = await db.prepare('SELECT * FROM classes WHERE id=? AND user_id=?')
+    const updated = await db
+      .prepare('SELECT * FROM classes WHERE id=? AND user_id=?')
       .bind(id, userId)
       .first();
 
@@ -265,7 +282,8 @@ export async function handleClasses(
   }
 
   if (request.method === 'DELETE' && id) {
-    const res = await db.prepare('DELETE FROM classes WHERE id=? AND user_id=?')
+    const res = await db
+      .prepare('DELETE FROM classes WHERE id=? AND user_id=?')
       .bind(id, userId)
       .run();
 
@@ -303,7 +321,10 @@ export async function handleScheduleExceptions(
       query += ' ORDER BY date ASC, created_at ASC';
     }
 
-    const rows = await db.prepare(query).bind(...params).all();
+    const rows = await db
+      .prepare(query)
+      .bind(...params)
+      .all();
     return json((rows.results || []).map(mapExceptionRow));
   }
 
@@ -323,7 +344,8 @@ export async function handleScheduleExceptions(
       return json({ error: 'Укажи ID пары (class_id).' }, 400);
     }
 
-    const classRow = await db.prepare('SELECT id FROM classes WHERE id=? AND user_id=?')
+    const classRow = await db
+      .prepare('SELECT id FROM classes WHERE id=? AND user_id=?')
       .bind(body.class_id, userId)
       .first();
 
@@ -350,30 +372,32 @@ export async function handleScheduleExceptions(
     const note = body.note ? String(body.note).trim().slice(0, 200) : null;
 
     // Check if exception already exists for this (user_id, date, class_id)
-    const existing = await db.prepare(
-      'SELECT id FROM schedule_exceptions WHERE user_id=? AND date=? AND class_id=?'
-    )
+    const existing = await db
+      .prepare('SELECT id FROM schedule_exceptions WHERE user_id=? AND date=? AND class_id=?')
       .bind(userId, body.date, body.class_id)
       .first<{ id: string }>();
 
     let excId: string;
     if (existing) {
       excId = existing.id;
-      await db.prepare(
-        'UPDATE schedule_exceptions SET type=?,new_start=?,new_end=?,new_place=?,note=? WHERE id=? AND user_id=?'
-      )
+      await db
+        .prepare(
+          'UPDATE schedule_exceptions SET type=?,new_start=?,new_end=?,new_place=?,note=? WHERE id=? AND user_id=?'
+        )
         .bind(body.type, newStart, newEnd, newPlace, note, excId, userId)
         .run();
     } else {
       excId = crypto.randomUUID();
-      await db.prepare(
-        'INSERT INTO schedule_exceptions(id,user_id,date,class_id,type,new_start,new_end,new_place,note) VALUES(?,?,?,?,?,?,?,?,?)'
-      )
+      await db
+        .prepare(
+          'INSERT INTO schedule_exceptions(id,user_id,date,class_id,type,new_start,new_end,new_place,note) VALUES(?,?,?,?,?,?,?,?,?)'
+        )
         .bind(excId, userId, body.date, body.class_id, body.type, newStart, newEnd, newPlace, note)
         .run();
     }
 
-    const created = await db.prepare('SELECT * FROM schedule_exceptions WHERE id=? AND user_id=?')
+    const created = await db
+      .prepare('SELECT * FROM schedule_exceptions WHERE id=? AND user_id=?')
       .bind(excId, userId)
       .first();
 
@@ -381,7 +405,8 @@ export async function handleScheduleExceptions(
   }
 
   if (request.method === 'DELETE' && id) {
-    const res = await db.prepare('DELETE FROM schedule_exceptions WHERE id=? AND user_id=?')
+    const res = await db
+      .prepare('DELETE FROM schedule_exceptions WHERE id=? AND user_id=?')
       .bind(id, userId)
       .run();
 

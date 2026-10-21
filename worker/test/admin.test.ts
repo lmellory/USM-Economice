@@ -4,9 +4,20 @@ import { handleAdminBroadcast, handleAdminStats, isUserAdmin } from '../src/admi
 describe('Admin panel functionality', () => {
   it('correctly identifies admin users', () => {
     const env: any = { ADMIN_USER_ID: '12345678' };
-    expect(isUserAdmin(env, '5067848442')).toBe(true);
+    expect(isUserAdmin(env, '5067848442')).toBe(false);
+    expect(isUserAdmin({} as any, '5067848442')).toBe(true);
     expect(isUserAdmin(env, '12345678')).toBe(true);
     expect(isUserAdmin(env, '99999999')).toBe(false);
+  });
+
+  it('keeps the owner and adds the configured second administrator', () => {
+    const env: any = { ADMIN_USER_IDS: '8624922366' };
+    expect(isUserAdmin(env, '5067848442')).toBe(true);
+    expect(isUserAdmin(env, '8624922366')).toBe(true);
+    expect(isUserAdmin(env, '99999999')).toBe(false);
+    expect(isUserAdmin({ ADMIN_USER_ID: '123', ADMIN_USER_IDS: '8624922366' } as any, '123')).toBe(
+      true
+    );
   });
 
   it('rejects non-admin access to admin stats', async () => {

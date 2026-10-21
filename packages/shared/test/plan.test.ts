@@ -308,3 +308,37 @@ describe('applyScheduleExceptions', () => {
     expect(updated[0].isCancelled).toBeUndefined();
   });
 });
+
+describe('Routine regressions', () => {
+  const classes = [{ day: 1, start: '10:00', end: '11:30', title: 'Математика', place: 'USM' }];
+  const settings = {
+    sleep_hours: 8,
+    sleep_latency: 15,
+    wash_minutes: 20,
+    breakfast_minutes: 30,
+    get_ready_minutes: 10,
+    travel_minutes: 35,
+    travel_buffer: 10,
+  };
+  it('keeps a bedtime before midnight on the previous evening', () => {
+    const routine = calculateMorningRoutine(classes, { ...settings, target_bedtime: '23:30' });
+    expect(routine?.wake).toBe('07:30');
+    expect(routine?.bed).toBe('23:15');
+  });
+  it('respects zero travel time, buffer and falling-asleep time', () => {
+    const routine = calculateMorningRoutine(
+      classes,
+      {
+        ...settings,
+        target_bedtime: '00:15',
+        travel_minutes: 0,
+        travel_buffer: 0,
+        sleep_latency: 0,
+      },
+      35
+    );
+    expect(routine?.leave).toBe('10:00');
+    expect(routine?.arrive).toBe('10:00');
+    expect(routine?.bed).toBe('00:15');
+  });
+});

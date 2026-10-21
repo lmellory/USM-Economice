@@ -48,6 +48,12 @@ interface TransitViewProps {
   mapsBrowserKey?: string;
 }
 
+const escapeMapText = (value: unknown) =>
+  String(value ?? '').replace(
+    /[&<>"']/g,
+    (char) =>
+      ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[char] || char
+  );
 const ROUTE_COLORS: Record<string, string> = {
   '2': '#d946ef', // Magenta
   '17': '#059669', // Emerald (Sports)
@@ -150,6 +156,13 @@ export const TransitView: React.FC<TransitViewProps> = ({
   const [stopsList, setStopsList] = useState<TransitStop[]>([]);
   const [selectedStop, setSelectedStop] = useState<TransitStop | null>(null);
   const [isRefreshing, setIsRefreshing] = useState(false);
+  const [liveError, setLiveError] = useState('');
+  const [liveCheckedAt, setLiveCheckedAt] = useState<number | null>(null);
+  const [liveClock, setLiveClock] = useState(Date.now());
+  useEffect(() => {
+    const timer = setInterval(() => setLiveClock(Date.now()), 15000);
+    return () => clearInterval(timer);
+  }, []);
 
   // Trip Planner States
   const [pickingPoint, setPickingPoint] = useState<'A' | 'B' | null>(null);
@@ -224,9 +237,13 @@ export const TransitView: React.FC<TransitViewProps> = ({
       const res = await request('/api/transit/commute?destination=university');
       if (res && res.liveVehicles && Array.isArray(res.liveVehicles)) {
         setActiveVehicles(res.liveVehicles);
+        setLiveCheckedAt(Date.now());
+        setLiveError('');
+      } else {
+        setLiveError('Не удалось обновить транспорт');
       }
     } catch {
-      // Handled silently
+      setLiveError('Нет связи с транспортом');
     }
   }, [request]);
 
@@ -319,24 +336,21 @@ export const TransitView: React.FC<TransitViewProps> = ({
   );
 
   // Handle map click: set A/B point if picking, otherwise close open info windows / cards
-  const handleMapClickPoint = useCallback(
-    (lat: number, lon: number) => {
-      if (pickingPointRef.current === 'A') {
-        setPointA({ lat, lon });
-        setPickingPoint(null);
-      } else if (pickingPointRef.current === 'B') {
-        setPointB({ lat, lon });
-        setPickingPoint(null);
-      } else {
-        if (activeInfoWindowRef.current) {
-          activeInfoWindowRef.current.close();
-          activeInfoWindowRef.current = null;
-        }
-        setSelectedStop(null);
+  const handleMapClickPoint = useCallback((lat: number, lon: number) => {
+    if (pickingPointRef.current === 'A') {
+      setPointA({ lat, lon });
+      setPickingPoint(null);
+    } else if (pickingPointRef.current === 'B') {
+      setPointB({ lat, lon });
+      setPickingPoint(null);
+    } else {
+      if (activeInfoWindowRef.current) {
+        activeInfoWindowRef.current.close();
+        activeInfoWindowRef.current = null;
       }
-    },
-    []
-  );
+      setSelectedStop(null);
+    }
+  }, []);
 
   // Auto-calculate trip plan when both points are present
   const fetchTripPlan = useCallback(
@@ -461,7 +475,7 @@ export const TransitView: React.FC<TransitViewProps> = ({
       const svg = `
         <svg xmlns="http://www.w3.org/2000/svg" width="40" height="26" viewBox="0 0 40 26">
           <rect width="40" height="26" rx="13" fill="${color}" stroke="#ffffff" stroke-width="2"/>
-          <text x="20" y="17" fill="#ffffff" font-size="12" font-weight="bold" text-anchor="middle" font-family="sans-serif">№${veh.route_short_name}</text>
+          <text x="20" y="17" fill="#ffffff" font-size="12" font-weight="bold" text-anchor="middle" font-family="sans-serif">№${escapeMapText(veh.route_short_name)}</text>
         </svg>
       `;
 
@@ -479,7 +493,7 @@ export const TransitView: React.FC<TransitViewProps> = ({
       const info = new window.google.maps.InfoWindow({
         content: `
           <div style="padding: 4px 6px; font-family: sans-serif; color: #111;">
-            <strong style="color: ${color}">Троллейбус №${veh.route_short_name}</strong> (борт ${veh.label || '—'})<br/>
+            <strong style="color: ${color}">Троллейбус №${escapeMapText(veh.route_short_name)}</strong> (борт ${escapeMapText(veh.label || '—')})<br/>
             <small>Скорость: ${speedKmH} км/ч · На линии: ${routeVehiclesCount} машин</small>
           </div>
         `,
@@ -516,8 +530,8 @@ export const TransitView: React.FC<TransitViewProps> = ({
 
       const svg = `
         <svg xmlns="http://www.w3.org/2000/svg" width="${isSpecial ? 22 : 12}" height="${
-        isSpecial ? 22 : 12
-      }" viewBox="0 0 22 22">
+          isSpecial ? 22 : 12
+        }" viewBox="0 0 22 22">
           <circle cx="11" cy="11" r="9" fill="${
             isSpecial ? '#7c3aed' : '#64748b'
           }" stroke="#ffffff" stroke-width="2"/>
@@ -538,8 +552,8 @@ export const TransitView: React.FC<TransitViewProps> = ({
       const info = new window.google.maps.InfoWindow({
         content: `
           <div style="padding: 4px 6px; font-family: sans-serif; color: #111;">
-            <strong>🚏 ${stop.stop_name}</strong><br/>
-            <small>${stop.stop_desc || 'Остановка Кишинёва'}</small>
+            <strong>🚏 ${escapeMapText(stop.stop_name)}</strong><br/>
+            <small>${escapeMapText(stop.stop_desc || 'Остановка Кишинёва')}</small>
           </div>
         `,
       });
@@ -733,8 +747,6 @@ export const TransitView: React.FC<TransitViewProps> = ({
     };
   }, [selectedRouteFilter]);
 
-
-
   // Center on User GPS
   const handleLocateUser = useCallback(() => {
     const target = userLocation || DEFAULT_CENTER;
@@ -815,7 +827,9 @@ export const TransitView: React.FC<TransitViewProps> = ({
                 title="Слой пробок"
                 aria-label="Пробки"
               >
-                <span className="tb-btn-emoji" aria-hidden="true">🚦</span>
+                <span className="tb-btn-emoji" aria-hidden="true">
+                  🚦
+                </span>
                 <span className="tb-btn-label">Пробки</span>
               </button>
             )}
@@ -935,13 +949,20 @@ export const TransitView: React.FC<TransitViewProps> = ({
                 <>
                   <CircleAlert size={28} color="#ef4444" />
                   <strong>Ошибка загрузки карты</strong>
-                  <p>{googleMapsError}</p>
+                  <p>Не удалось загрузить карту. Попробуй открыть её позже.</p>
                 </>
               ) : !mapsBrowserKey ? (
                 <>
                   <CircleAlert size={28} color="#f59e0b" />
-                  <strong>Ключ Google Maps не найден</strong>
-                  <p>Проверьте настройки окружения (VITE_GOOGLE_MAPS_KEY)</p>
+                  <strong>Карта временно недоступна</strong>
+                  <p>Можно открыть маршрут в приложении карт.</p>
+                  <a
+                    href="https://www.google.com/maps/dir/?api=1&amp;destination=Universitatea+de+Stat+din+Moldova+Chisinau"
+                    target="_blank"
+                    rel="noopener noreferrer"
+                  >
+                    Открыть карты
+                  </a>
                 </>
               ) : (
                 <>
@@ -958,9 +979,14 @@ export const TransitView: React.FC<TransitViewProps> = ({
           <div className="pill-live-status">
             <span className="live-radar-dot" />
             <span className="live-stat-text">
-              {activeVehicles.length > 0
-                ? `${activeVehicles.length} машин онлайн · GPS RTEC`
-                : 'Поиск троллейбусов на линии…'}
+              {liveError ||
+                (liveCheckedAt && liveClock - liveCheckedAt > 90000
+                  ? 'Данные транспорта устарели'
+                  : liveCheckedAt
+                    ? activeVehicles.length > 0
+                      ? `${activeVehicles.length} машин · обновлено ${new Date(liveCheckedAt).toLocaleTimeString('ru-RU', { hour: '2-digit', minute: '2-digit' })}`
+                      : 'На выбранных маршрутах машин нет'
+                    : 'Загружаем транспорт…')}
             </span>
           </div>
           <div className="pill-gps-status">
@@ -1309,7 +1335,11 @@ export const TransitView: React.FC<TransitViewProps> = ({
                               return (
                                 <span
                                   key={sIdx}
-                                  style={{ display: 'inline-flex', alignItems: 'center', gap: '3px' }}
+                                  style={{
+                                    display: 'inline-flex',
+                                    alignItems: 'center',
+                                    gap: '3px',
+                                  }}
                                 >
                                   <span className="trip-step-line-chip">
                                     🚎 №{st.lineShortName}

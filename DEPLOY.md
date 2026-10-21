@@ -59,7 +59,7 @@ Cloudflare сам устанавливает зависимости, выпол�
 | `TELEGRAM_WEBHOOK_SECRET` | созданный webhook secret, тип Secret                                                     |
 | `MINI_APP_URL`            | `https://usm-life.<твой-поддомен>.workers.dev`                                           |
 | `GOOGLE_MAPS_SERVER_KEY`  | API-ключ Google Maps для Routes API (серверный), тип Secret                              |
-| `GOOGLE_MAPS_BROWSER_KEY` | API-ключ Google Maps для Maps JS API (клиентский), тип Secret                             |
+| `GOOGLE_MAPS_BROWSER_KEY` | API-ключ Google Maps для Maps JS API (клиентский), тип Secret                            |
 | `TRANZY_API_KEY`          | _(опционально)_ API-ключ Tranzy, тип Secret                                              |
 | `TRANZY_VEHICLES_URL`     | `https://api.tranzy.ai/v1/opendata/vehicles` (уже задан в `wrangler.toml`)               |
 | `TRANZY_REFRESH_MINUTES`  | `5` (период опроса транспорта в минутах, уже задан в `wrangler.toml`)                    |
@@ -100,8 +100,8 @@ node --env-file=.env.local scripts/set-webhook.mjs
 1. **`GOOGLE_MAPS_SERVER_KEY` (Серверный ключ)**
    - **Назначение:** Используется бэкендом Cloudflare Worker в эндпоинте `GET /api/trip/plan` для выполнения запросов к Google Routes API v2 (`TRANSIT` и `DRIVE` с включённым `TRAFFIC_AWARE`).
    - **Включение API:** В [Google Cloud Console](https://console.cloud.google.com/) включи **Routes API**.
-   - **Ограничения ключа (API restrictions):** Выбери *Restrict key* → разреши только **Routes API**.
-   - **Ограничения приложений (Application restrictions):** Выбери *None* (так как Cloudflare Workers выполняют запросы с динамических IP-адресов дата-центров Cloudflare).
+   - **Ограничения ключа (API restrictions):** Выбери _Restrict key_ → разреши только **Routes API**.
+   - **Ограничения приложений (Application restrictions):** Выбери _None_ (так как Cloudflare Workers выполняют запросы с динамических IP-адресов дата-центров Cloudflare).
    - **Установка в Worker:** Выполни в терминале:
      ```bash
      npx wrangler secret put GOOGLE_MAPS_SERVER_KEY
@@ -111,8 +111,8 @@ node --env-file=.env.local scripts/set-webhook.mjs
 2. **`GOOGLE_MAPS_BROWSER_KEY` (Клиентский ключ)**
    - **Назначение:** Загружает Maps JavaScript API в Telegram Mini App для отображения интерактивной карты, маркеров троллейбусов Tranzy, слоя пробок TrafficLayer и полилиний маршрутов.
    - **Включение API:** В Google Cloud Console включи **Maps JavaScript API**.
-   - **Ограничения ключа (API restrictions):** Выбери *Restrict key* → разреши только **Maps JavaScript API**.
-   - **Ограничения приложений (Website restrictions / HTTP referrers):** Выбери *Websites* и укажи разрешённые домены:
+   - **Ограничения ключа (API restrictions):** Выбери _Restrict key_ → разреши только **Maps JavaScript API**.
+   - **Ограничения приложений (Website restrictions / HTTP referrers):** Выбери _Websites_ и укажи разрешённые домены:
      - `https://usm-life.<твой-поддомен>.workers.dev/*`
      - `https://web.telegram.org/*`
      - `https://t.me/*`
@@ -156,3 +156,18 @@ node --env-file=.env.local scripts/set-webhook.mjs
 - Для записи `console.error` и запросов явно включена Observability в `worker/wrangler.toml`. После следующего успешного деплоя открой Cloudflare Dashboard → **Workers & Pages** → **usm-life** → **Logs** → **Live** (в некоторых версиях панели раздел называется **Observability**). Запусти поток логов и повтори действие в Mini App.
 - Если пункта Logs/Observability нет вообще, это вопрос интерфейса или прав аккаунта, а не отсутствие обращений к Worker. Убедись, что выбрана именно запись Worker `usm-life`, а не домен/страница проекта; при необходимости владелец аккаунта должен выдать роль с доступом к Workers Logs.
 - Не записывай в логи токен, адреса, Telegram `initData` или тексты ДЗ.
+
+## Обновление с админ-панелью сообщений
+
+1. Проверь `ADMIN_USER_ID` в настройках Worker: это Telegram ID владельца.
+   Дополнительные администраторы задаются в `ADMIN_USER_IDS`; в проекте указан `8624922366`.
+2. Примени миграции к активной базе (D1 либо Turso), включая
+   `0010_admin_broadcasts.sql`. Она добавляет журнал рассылок и отметку однократной
+   инициализации расписания. Не публикуй новый Worker до этой миграции.
+3. Выполни проверки типов, тесты и сборку. Затем опубликуй Worker с интерфейсом.
+4. В Telegram открой «Настройки → Панель администратора» и проверь режим
+   «Только мне». После проверки можно выбирать других получателей.
+
+Публичный `/health` теперь только читает состояние. Параметры
+`broadcast_weather`, `refresh`, `refresh_stops` не запускают действия.
+Для сообщений используется только API администратора с Telegram-авторизацией.

@@ -1,18 +1,24 @@
-import React, { useState } from 'react';
+import React, { useRef, useState } from 'react';
 import { Bell, X } from 'lucide-react';
-import { baseSchedule } from '../lib/plan.js';
 import { TZ, zonedIso } from '../lib/time.js';
 
 interface HomeworkModalProps {
   item: any | null;
   reminderMinutes: number;
+  subjects: string[];
   onClose: () => void;
-  onSave: (payload: any) => void;
+  onSave: (payload: any) => Promise<void>;
 }
 
-const subjects = [...new Set(baseSchedule.map((c) => c.title))];
-
-export function HomeworkModal({ item, reminderMinutes, onClose, onSave }: HomeworkModalProps) {
+export function HomeworkModal({
+  item,
+  subjects,
+  reminderMinutes,
+  onClose,
+  onSave,
+}: HomeworkModalProps) {
+  const savingRef = useRef(false);
+  const [saving, setSaving] = useState(false);
   const [title, setTitle] = useState(item?.title || '');
   const [subject, setSubject] = useState(item?.subject || '');
   const [dueDate, setDueDate] = useState(item?.due_date || '');
@@ -30,19 +36,26 @@ export function HomeworkModal({ item, reminderMinutes, onClose, onSave }: Homewo
   const [remind, setRemind] = useState(item?.telegram_reminder || false);
   const [custom, setCustom] = useState(Boolean(item?.subject && !subjects.includes(item.subject)));
 
-  const handleSave = () => {
-    if (!title.trim()) return;
-    onSave({
-      id: item?.id,
-      title: title.trim(),
-      subject: subject || null,
-      dueDate: dueDate || null,
-      dueTime: dueTime || null,
-      dueAt: dueDate && dueTime ? zonedIso(dueDate, dueTime) : null,
-      note: note || null,
-      telegramReminder: remind,
-      completed: item?.completed || false,
-    });
+  const handleSave = async () => {
+    if (!title.trim() || savingRef.current) return;
+    savingRef.current = true;
+    setSaving(true);
+    try {
+      await onSave({
+        id: item?.id,
+        title: title.trim(),
+        subject: subject || null,
+        dueDate: dueDate || null,
+        dueTime: dueTime || null,
+        dueAt: dueDate && dueTime ? zonedIso(dueDate, dueTime) : null,
+        note: note || null,
+        telegramReminder: remind,
+        completed: item?.completed || false,
+      });
+    } finally {
+      savingRef.current = false;
+      setSaving(false);
+    }
   };
 
   return (
@@ -143,8 +156,13 @@ export function HomeworkModal({ item, reminderMinutes, onClose, onSave }: Homewo
           </button>
         )}
 
-        <button type="button" className="primary-btn" disabled={!title.trim()} onClick={handleSave}>
-          {item ? 'Сохранить' : 'Добавить задание'}
+        <button
+          type="button"
+          className="primary-btn"
+          disabled={!title.trim() || saving}
+          onClick={handleSave}
+        >
+          {saving ? 'Сохраняем…' : item ? 'Сохранить' : 'Добавить задание'}
         </button>
 
         <p className="modal-foot">Без срока — значит без срока. Я ничего не назначу сама.</p>

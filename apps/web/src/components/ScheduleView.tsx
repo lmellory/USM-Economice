@@ -1,17 +1,7 @@
 import React, { useState } from 'react';
-import {
-  Ban,
-  Calendar,
-  Clock,
-  Edit2,
-  MapPin,
-  Plus,
-  Sunrise,
-  Trash2,
-  X,
-} from 'lucide-react';
+import { Ban, Calendar, Clock, Edit2, MapPin, Plus, Sunrise, Trash2, X } from 'lucide-react';
 import { ClassItem, dayNames, ScheduleException, shortDays } from '../lib/plan.js';
-import { fmtDate } from '../lib/time.js';
+import { dateParts, fmtDate } from '../lib/time.js';
 
 interface ScheduleViewProps {
   schedule: ClassItem[];
@@ -32,13 +22,15 @@ export function ScheduleView({
   onDeleteException,
   vibrate,
 }: ScheduleViewProps) {
-  const [selectedDay, setSelectedDay] = useState(1); // 1 = Пн
+  const [selectedDay, setSelectedDay] = useState(dateParts(new Date()).weekday);
 
   const dayClasses = schedule
     .filter((c) => c.day === selectedDay)
     .sort((a, b) => a.start.localeCompare(b.start));
 
-  const upcomingExceptions = exceptions.slice().sort((a, b) => a.date.localeCompare(b.date));
+  const upcomingExceptions = exceptions
+    .filter((item) => item.date >= dateParts(new Date()).key)
+    .sort((a, b) => a.date.localeCompare(b.date));
 
   return (
     <div className="schedule-view">
@@ -125,8 +117,12 @@ export function ScheduleView({
                 </div>
 
                 <div className="class-tags-row">
-                  {c.parity === 'odd' && <span className="parity-badge odd">Нечётная неделя (I)</span>}
-                  {c.parity === 'even' && <span className="parity-badge even">Чётная неделя (II)</span>}
+                  {c.parity === 'odd' && (
+                    <span className="parity-badge odd">Нечётная неделя (I)</span>
+                  )}
+                  {c.parity === 'even' && (
+                    <span className="parity-badge even">Чётная неделя (II)</span>
+                  )}
                   {!c.parity && <span className="parity-badge all">Каждую неделю</span>}
                 </div>
               </div>

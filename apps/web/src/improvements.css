@@ -1,0 +1,551 @@
+/* Shared reading and interaction improvements. */
+.eyebrow {
+  font-size: 10px;
+  letter-spacing: 0.09em;
+}
+button:focus-visible,
+a:focus-visible,
+summary:focus-visible,
+input:focus-visible,
+textarea:focus-visible,
+select:focus-visible {
+  outline: 3px solid var(--accent);
+  outline-offset: 3px;
+}
+button:disabled {
+  opacity: 0.55;
+  cursor: default;
+}
+.class-meta,
+.task-main small,
+.deadline-body p,
+.free-time-body span {
+  font-size: 12px;
+}
+.deadline-body strong {
+  font-size: 13px;
+}
+.hw-tabs {
+  overflow-x: auto;
+  justify-content: flex-start;
+  gap: 7px;
+  padding-bottom: 5px;
+}
+.hw-tabs button {
+  flex: 0 0 auto;
+  min-height: 40px;
+}
+.overdue-label,
+.task-card.overdue small {
+  color: #b33a34;
+}
+.task-card.overdue {
+  border-left: 3px solid #b33a34;
+}
+.save-status {
+  min-height: 20px;
+  font-size: 12px;
+  color: var(--muted);
+}
+.save-status.error {
+  color: #b33a34;
+}
+.save-status.saved {
+  color: var(--accent);
+}
+.next-action {
+  padding: 18px;
+  border-radius: 18px;
+  margin: 12px 0 18px;
+  background: var(--surface);
+  border: 1px solid var(--accent);
+  box-shadow: var(--card-shadow);
+}
+.next-action .eyebrow {
+  color: var(--accent);
+  font-weight: 700;
+}
+.next-action-title {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+}
+.next-action h2 {
+  font-size: 21px;
+  line-height: 1.25;
+  margin: 10px 0;
+  letter-spacing: -0.025em;
+}
+.next-action-title strong {
+  font-size: 25px;
+  white-space: nowrap;
+  padding-top: 8px;
+}
+.next-action p {
+  margin: 4px 0 14px;
+  color: var(--muted);
+  font-size: 13px;
+  display: flex;
+  gap: 6px;
+  align-items: flex-start;
+  line-height: 1.5;
+}
+.next-action p svg {
+  flex-shrink: 0;
+  margin-top: 2px;
+}
+.next-action-bottom {
+  display: flex;
+  gap: 12px;
+  justify-content: space-between;
+  align-items: center;
+  padding-top: 12px;
+  border-top: 1px solid var(--border);
+  font-size: 13px;
+  font-weight: 600;
+}
+.next-action-bottom button {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  color: var(--accent);
+  min-height: 36px;
+}
+.free-time-body {
+  flex-wrap: wrap;
+}
+.routine-details {
+  margin-top: 12px;
+}
+.routine-details summary {
+  font-size: 13px;
+  color: var(--accent);
+  cursor: pointer;
+  padding: 8px 0;
+}
+.routine-details .morning-timeline-strip {
+  margin-top: 8px;
+}
+.map-fallback-card a {
+  color: var(--accent);
+  font-size: 14px;
+  display: inline-block;
+  padding: 10px;
+}
+.admin-messages {
+  padding-bottom: 24px;
+}
+.admin-messages .admin-hero {
+  margin: 20px 0;
+}
+.admin-messages h1 {
+  font: 400 29px/1.15 var(--serif);
+  margin: 8px 0;
+  color: var(--text);
+}
+.admin-messages .admin-hero p {
+  color: var(--muted);
+  font-size: 14px;
+  line-height: 1.5;
+  margin: 8px 0;
+}
+.admin-messages .admin-section {
+  padding: 18px;
+  border: 1px solid var(--border);
+  background: var(--surface);
+  border-radius: 16px;
+  margin: 14px 0;
+  box-shadow: none;
+}
+.admin-messages h2 {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 17px;
+  margin: 0 0 16px;
+  color: var(--text);
+}
+.admin-messages .admin-section p {
+  font-size: 13px;
+  line-height: 1.6;
+  overflow-wrap: anywhere;
+}
+.admin-overview {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 16px 18px;
+  border: 1px solid var(--border);
+  border-radius: 16px;
+  background: var(--surface);
+}
+.admin-overview > svg {
+  color: var(--accent);
+}
+.admin-overview > div {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  flex: 1;
+}
+.admin-overview strong {
+  font-size: 24px;
+}
+.admin-overview span {
+  font-size: 13px;
+  color: var(--muted);
+}
+.admin-overview button {
+  width: 40px;
+  height: 40px;
+}
+.admin-field-label {
+  display: block;
+  font-size: 13px;
+  font-weight: 600;
+  margin-bottom: 8px;
+}
+.admin-messages .admin-textarea {
+  display: block;
+  width: 100%;
+  min-height: 140px;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 12px;
+  background: var(--input-bg);
+  color: var(--text);
+  font: inherit;
+  font-size: 16px;
+  line-height: 1.5;
+  resize: vertical;
+}
+.admin-character-count {
+  text-align: right;
+  color: var(--muted);
+  font-size: 12px;
+  margin: 6px 0 16px;
+}
+.admin-audience {
+  border: 0;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  padding: 0;
+  margin: 0;
+  min-width: 0;
+}
+.admin-audience legend {
+  margin-bottom: 9px;
+  font-size: 13px;
+  font-weight: 600;
+}
+.admin-audience button {
+  min-height: 42px;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  font-size: 12px;
+  padding: 9px 11px;
+}
+.admin-audience button.selected {
+  background: var(--accent);
+  color: white;
+  border-color: var(--accent);
+}
+.admin-recipient-note {
+  color: var(--muted);
+  min-height: 40px;
+}
+.admin-messages .admin-action-btn {
+  width: 100%;
+  min-height: 46px;
+  border-radius: 12px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  padding: 12px;
+  font-size: 14px;
+  font-weight: 600;
+}
+.admin-messages .admin-action-btn.primary {
+  background: var(--accent);
+  color: white;
+  background-image: none;
+  border: 0;
+  box-shadow: none;
+}
+.admin-messages .admin-action-btn.secondary {
+  border: 1px solid var(--accent);
+  color: var(--accent);
+  background: var(--surface);
+}
+.admin-messages .admin-confirmation {
+  border-color: var(--accent);
+}
+.admin-confirmation-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+}
+.admin-confirmation-head > button {
+  min-height: 32px;
+  min-width: 32px;
+}
+.admin-messages .preview-bubble {
+  color: var(--text);
+  background: var(--bg);
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  font-size: 15px;
+  line-height: 1.6;
+  border-radius: 12px;
+  padding: 16px;
+  margin: 14px 0;
+}
+.admin-cancel {
+  display: block;
+  padding: 12px;
+  width: 100%;
+  color: var(--muted);
+  font-size: 13px;
+}
+.admin-search {
+  display: flex;
+  gap: 10px;
+  align-items: center;
+  padding: 10px 12px;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+}
+.admin-search > svg {
+  flex-shrink: 0;
+  color: var(--muted);
+}
+.admin-search input {
+  width: 100%;
+  min-width: 0;
+  border: 0;
+  outline: none;
+  color: var(--text);
+  background: transparent;
+  font-size: 15px;
+}
+.admin-messages .admin-users-list {
+  max-height: 360px;
+  overflow: auto;
+  margin-top: 12px;
+}
+.admin-messages .admin-user-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  border-bottom: 1px solid var(--border);
+  padding: 12px 0;
+  background: none;
+}
+.admin-user-check {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-width: 0;
+  flex: 1;
+  cursor: pointer;
+}
+.admin-user-check input {
+  width: 19px;
+  height: 19px;
+  flex-shrink: 0;
+  accent-color: var(--accent);
+}
+.admin-user-check > span {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  gap: 5px;
+}
+.admin-user-check strong {
+  font-size: 14px;
+  overflow-wrap: anywhere;
+}
+.admin-user-check small {
+  font-size: 11px;
+  color: var(--muted);
+}
+.admin-messages .send-single-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  color: var(--accent);
+  background: none;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  font-size: 12px;
+  padding: 10px;
+  min-height: 40px;
+  flex-shrink: 0;
+}
+.admin-inline-error {
+  padding: 14px;
+  border-radius: 12px;
+  border: 1px solid #b33a34;
+  color: #b33a34;
+  background: var(--surface);
+  font-size: 13px;
+  line-height: 1.5;
+  margin: 12px 0;
+}
+.admin-delivery-error {
+  color: #b33a34;
+}
+.admin-test-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+.admin-test-actions button {
+  padding: 10px 12px;
+  min-height: 44px;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  font-size: 13px;
+}
+.admin-messages progress {
+  width: 100%;
+  accent-color: var(--accent);
+  height: 8px;
+}
+.admin-history-item {
+  border-top: 1px solid var(--border);
+  padding: 14px 0;
+}
+.admin-history-item > div {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  font-size: 13px;
+}
+.admin-history-item time {
+  color: var(--muted);
+  font-size: 11px;
+  white-space: nowrap;
+}
+.admin-history-item p {
+  white-space: pre-wrap;
+  display: -webkit-box;
+  -webkit-line-clamp: 3;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+.admin-history-item small {
+  color: var(--muted);
+  font-size: 12px;
+}
+.admin-history-item button {
+  display: block;
+  color: var(--accent);
+  font-weight: 600;
+  padding: 12px 0;
+}
+@media (max-width: 370px) {
+  .app {
+    padding-left: 14px;
+    padding-right: 14px;
+  }
+  .next-action {
+    padding: 14px;
+  }
+  .next-action-title {
+    gap: 9px;
+  }
+  .next-action-title h2 {
+    font-size: 19px;
+  }
+  .next-action-title strong {
+    font-size: 22px;
+  }
+  .admin-messages .admin-section {
+    padding: 14px;
+  }
+  .admin-messages .send-single-btn {
+    font-size: 11px;
+    padding: 8px;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}
+
+/* Theme aliases must be resolved on the element that overrides the theme tokens. */
+body.dark-theme,
+body.pink-theme {
+  --ink: var(--text);
+  --line: var(--border);
+  --paper: var(--card-bg);
+  --green: var(--accent);
+  --bg-alt: var(--surface);
+  --input-bg: var(--surface);
+}
+.admin-messages {
+  gap: 0;
+  padding: 8px 0 24px;
+}
+.app.view-admin {
+  padding-bottom: max(24px, env(safe-area-inset-bottom));
+}
+.view-admin .bottom-nav {
+  display: none;
+}
+.admin-messages .admin-top-bar {
+  position: sticky;
+  top: 0;
+  z-index: 5;
+  background: var(--bg);
+  padding: 8px 0;
+}
+.admin-messages .admin-inline-error {
+  flex-shrink: 0;
+}
+.admin-messages .admin-audience {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+.admin-audience legend {
+  grid-column: 1 / -1;
+}
+.admin-audience button {
+  padding: 9px 7px;
+}
+.admin-messages .admin-confirmation {
+  scroll-margin-top: 70px;
+}
+.loading-screen {
+  padding-top: 15vh;
+}
+.loading-screen h1 {
+  font: 400 28px/1.2 var(--serif);
+}
+.loading-screen p {
+  line-height: 1.6;
+  color: var(--muted);
+}
+.dark-theme .overdue-label,
+.dark-theme .task-card.overdue small,
+.dark-theme .admin-inline-error,
+.dark-theme .admin-delivery-error {
+  color: #ffaaa3;
+}
+.brand {
+  text-transform: none;
+  letter-spacing: 0.02em;
+  font-family: inherit;
+  font-weight: 700;
+  font-size: 13px;
+}

@@ -18,11 +18,7 @@ import {
   Utensils,
   Wind,
 } from 'lucide-react';
-import {
-  ClassItem,
-  RoutineResult,
-  shortDays,
-} from '../lib/plan.js';
+import { ClassItem, RoutineResult, shortDays } from '../lib/plan.js';
 import { dateParts, fmtDate, min, TZ } from '../lib/time.js';
 
 interface HomeViewProps {
@@ -34,6 +30,7 @@ interface HomeViewProps {
   todayKey: string;
   selectedInfo: ReturnType<typeof dateParts>;
   daySchedule: { parity: string | null; classes: ClassItem[] };
+  tomorrow: { key: string; classes: ClassItem[]; routine: RoutineResult | null };
   studyWeekLabel: string;
   settings: any;
   routine: RoutineResult | null;
@@ -57,6 +54,7 @@ export function HomeView({
   todayKey,
   selectedInfo,
   daySchedule,
+  tomorrow,
   studyWeekLabel,
   settings,
   routine,
@@ -105,6 +103,24 @@ export function HomeView({
     : `${timeOfDayGreeting}.`;
 
   const addDays = (d: Date, n: number) => new Date(d.getTime() + n * 86400000);
+  const isToday = selectedInfo.key === todayKey;
+  const upcoming = daySchedule.classes.find(
+    (item) => !item.isCancelled && nowMinutes < (item.end ? min(item.end) : min(item.start) + 90)
+  );
+  const tomorrowFirst = tomorrow.classes.find((item) => !item.isCancelled);
+  const focusClass = upcoming || tomorrowFirst;
+  const focusTomorrow = !upcoming;
+  const focusRoutine = focusTomorrow ? tomorrow.routine : routine;
+  const morningRoutine = isToday && focusTomorrow ? tomorrow.routine : routine;
+  const morningKey = isToday && focusTomorrow ? tomorrow.key : selectedInfo.key;
+  const currentlyInClass = !!upcoming && nowMinutes >= min(upcoming.start);
+  const leaveTime = focusRoutine?.leave;
+  const showLeave =
+    focusTomorrow ||
+    (!!focusRoutine && focusRoutine.leaveMin != null && nowMinutes <= focusRoutine.leaveMin);
+  const semesterYear = Number(String(settings.semester_start || todayKey).slice(0, 4));
+  const semesterMonth = Number(String(settings.semester_start || todayKey).slice(5, 7));
+  const academicYear = semesterMonth >= 8 ? semesterYear : semesterYear - 1;
 
   return (
     <>
@@ -122,6 +138,47 @@ export function HomeView({
           <small>Кишинёв</small>
         </div>
       </section>
+
+      {isToday && (
+        <section className="next-action" aria-label="Ближайшее занятие">
+          <span className="eyebrow">
+            {currentlyInClass ? 'СЕЙЧАС ИДЁТ' : focusTomorrow ? 'ПЛАН НА ЗАВТРА' : 'СЛЕДУЮЩАЯ ПАРА'}
+          </span>
+          {focusClass ? (
+            <>
+              <div className="next-action-title">
+                <h2>{focusClass.title}</h2>
+                <strong>{focusClass.start}</strong>
+              </div>
+              <p>
+                <MapPin size={15} />{' '}
+                {focusClass.online ? 'Онлайн' : focusClass.place || 'Аудитория пока не указана'}
+              </p>
+              <div className="next-action-bottom">
+                <span>
+                  {showLeave && leaveTime
+                    ? `Выйти в ${leaveTime}`
+                    : currentlyInClass
+                      ? `До ${focusClass.end || 'конца занятия'}`
+                      : focusTomorrow
+                        ? 'Завтра'
+                        : `Через ${min(focusClass.start) - nowMinutes} мин`}
+                </span>
+                {!focusClass.online && (
+                  <button type="button" onClick={() => navigate('map')}>
+                    Дорога <ArrowUpRight size={15} />
+                  </button>
+                )}
+              </div>
+            </>
+          ) : (
+            <>
+              <h2>Можно выдохнуть</h2>
+              <p>На сегодня и завтра занятий в расписании нет.</p>
+            </>
+          )}
+        </section>
+      )}
 
       <section className="week-card">
         <div className="week-head">
@@ -174,6 +231,8 @@ export function HomeView({
                 key={dp.key}
                 type="button"
                 className={`date-pill ${chosen ? 'chosen' : ''} ${isToday ? 'today' : ''}`}
+                aria-pressed={chosen}
+                aria-label={fmtDate(dp.key, { weekday: 'long', day: 'numeric', month: 'long' })}
                 onClick={() => {
                   setSelected(d);
                   vibrate();
@@ -195,7 +254,9 @@ export function HomeView({
               Указать семестр <ArrowUpRight size={13} />
             </button>
           )}
-          <span className="week-corner">I семестр · 2026/27</span>
+          <span className="week-corner">
+            {academicYear}/{String(academicYear + 1).slice(2)}
+          </span>
         </div>
       </section>
 
@@ -205,7 +266,14 @@ export function HomeView({
           <h2>{fmtDate(selectedInfo.key, { day: 'numeric', month: 'long' })}</h2>
         </div>
         {selectedInfo.key !== todayKey && (
-          <button type="button" className="today-link" onClick={() => setSelected(new Date())}>
+          <button
+            type="button"
+            className="today-link"
+            onClick={() => {
+              setSelected(new Date());
+              setWeekOffset(0);
+            }}
+          >
             Сегодня
           </button>
         )}
@@ -223,7 +291,9 @@ export function HomeView({
             <Bell size={15} />
           </div>
           <div className="deadline-body">
-            <strong>Сдать сегодня ({dayTasks.length})</strong>
+            <strong>
+              {isToday ? 'Сдать сегодня' : 'Сдать в этот день'} ({dayTasks.length})
+            </strong>
             <p>
               {dayTasks
                 .slice(0, 2)
@@ -236,17 +306,19 @@ export function HomeView({
         </section>
       )}
 
-      {routine && routine.freeMinutes > 0 && (
-        <section className="free-time-banner">
-          <div className="free-time-badge-icon">
-            <Coffee size={15} />
-          </div>
-          <div className="free-time-body">
-            <strong>Свободно {routine.freeTimeFormatted}</strong>
-            <span>до {routine.leave ? `выхода в ${routine.leave}` : `пары в ${routine.first.start}`}</span>
-          </div>
-        </section>
-      )}
+      {routine &&
+        routine.freeMinutes > 0 &&
+        (!isToday || nowMinutes < min(routine.first.start)) && (
+          <section className="free-time-banner">
+            <div className="free-time-badge-icon">
+              <Coffee size={15} />
+            </div>
+            <div className="free-time-body">
+              <strong>В утреннем плане: {routine.freeTimeFormatted}</strong>
+              <span>свободно после сборов</span>
+            </div>
+          </section>
+        )}
 
       <section className="classes">
         {daySchedule.classes.length ? (
@@ -254,7 +326,8 @@ export function HomeView({
             const isSelectedToday = selectedInfo.key === todayKey;
             const startM = min(c.start);
             const endM = c.end ? min(c.end) : startM + 90;
-            const isNow = !c.isCancelled && isSelectedToday && nowMinutes >= startM && nowMinutes < endM;
+            const isNow =
+              !c.isCancelled && isSelectedToday && nowMinutes >= startM && nowMinutes < endM;
 
             return (
               <article
@@ -379,43 +452,48 @@ export function HomeView({
             <span className="icon-chip lavender">
               <Moon size={16} />
             </span>
-            <span className="widget-label">ТВОЁ УТРО</span>
+            <span className="widget-label">
+              УТРО · {fmtDate(morningKey, { day: 'numeric', month: 'short' })}
+            </span>
           </div>
-          {routine ? (
+          {morningRoutine ? (
             <>
-              <b>Подъём в {routine.wake}</b>
+              <b>Подъём в {morningRoutine.wake}</b>
               <p>
-                Сон: отбой в {routine.bed} · цель {settings.sleep_hours || 8} ч
+                Сон: отбой в {morningRoutine.bed} · цель {settings.sleep_hours || 8} ч
               </p>
-              <div className="morning-timeline-strip">
-                <div className="morning-step">
-                  <Droplets size={12} />
-                  <span>Душ {routine.wash}</span>
-                </div>
-                <div className="morning-step">
-                  <Utensils size={12} />
-                  <span>Завтрак {routine.breakfast}</span>
-                </div>
-                <div className="morning-step">
-                  <Clock3 size={12} />
-                  <span>Сборы {routine.getready}</span>
-                </div>
-                {routine.leave && (
-                  <div className="morning-step accent">
-                    <ArrowUpRight size={12} />
-                    <span>Выйти {routine.leave}</span>
+              <details className="routine-details">
+                <summary>План сборов</summary>
+                <div className="morning-timeline-strip">
+                  <div className="morning-step">
+                    <Droplets size={12} />
+                    <span>Душ {morningRoutine.wash}</span>
                   </div>
-                )}
-              </div>
-              {routine.warning && (
+                  <div className="morning-step">
+                    <Utensils size={12} />
+                    <span>Завтрак {morningRoutine.breakfast}</span>
+                  </div>
+                  <div className="morning-step">
+                    <Clock3 size={12} />
+                    <span>Сборы {morningRoutine.getready}</span>
+                  </div>
+                  {morningRoutine.leave && (
+                    <div className="morning-step accent">
+                      <ArrowUpRight size={12} />
+                      <span>Выйти {morningRoutine.leave}</span>
+                    </div>
+                  )}
+                </div>
+              </details>
+              {morningRoutine.warning && (
                 <small className="warn-text">
-                  <CircleAlert size={12} /> {routine.warning}
+                  <CircleAlert size={12} /> {morningRoutine.warning}
                 </small>
               )}
             </>
           ) : (
             <>
-              <b>Завтра свободно</b>
+              <b>В этот день свободно</b>
               <p>В расписании пока нет занятий.</p>
             </>
           )}
@@ -440,7 +518,8 @@ export function HomeView({
                 <strong>{x.title}</strong>
                 <span>{x.subject || 'Без предмета'}</span>
               </div>
-              <time>
+              <time className={x.due_date < todayKey ? 'overdue-label' : ''}>
+                {x.due_date < todayKey ? 'Просрочено · ' : ''}
                 {x.due_date === todayKey
                   ? 'Сегодня'
                   : fmtDate(x.due_date, { day: 'numeric', month: 'short' })}

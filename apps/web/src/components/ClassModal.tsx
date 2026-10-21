@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useRef, useState } from 'react';
 import { Trash2, X } from 'lucide-react';
 import { ClassItem, dayNames, WeekParity } from '../lib/plan.js';
 import { Toggle } from './Toggle.js';
@@ -7,7 +7,7 @@ interface ClassModalProps {
   item: ClassItem | null;
   initialDay?: number;
   onClose: () => void;
-  onSave: (payload: Partial<ClassItem>) => void;
+  onSave: (payload: Partial<ClassItem>) => Promise<void>;
   onDelete?: (id: string) => void;
 }
 
@@ -22,16 +22,23 @@ export function ClassModal({ item, initialDay = 1, onClose, onSave, onDelete }: 
   const [place, setPlace] = useState(item?.place || '');
   const [parity, setParity] = useState<WeekParity | 'all'>(item?.parity || 'all');
   const [online, setOnline] = useState(Boolean(item?.online));
-  const [customKind, setCustomKind] = useState(Boolean(item?.kind && !KIND_PRESETS.includes(item.kind)));
+  const [customKind, setCustomKind] = useState(
+    Boolean(item?.kind && !KIND_PRESETS.includes(item.kind))
+  );
   const [destination, setDestination] = useState<'university' | 'sports'>(
     item?.destination ||
-      (item?.place?.includes('Ismail') || item?.title?.includes('физ') || item?.title?.includes('спорт')
+      (item?.place?.includes('Ismail') ||
+      item?.title?.includes('физ') ||
+      item?.title?.includes('спорт')
         ? 'sports'
         : 'university')
   );
   const [error, setError] = useState('');
+  const savingRef = useRef(false);
+  const [saving, setSaving] = useState(false);
 
-  const handleSave = () => {
+  const handleSave = async () => {
+    if (savingRef.current) return;
     if (!title.trim()) {
       setError('Укажи название предмета');
       return;
@@ -45,18 +52,29 @@ export function ClassModal({ item, initialDay = 1, onClose, onSave, onDelete }: 
       return;
     }
 
-    onSave({
-      id: item?.id,
-      day: Number(day),
-      start: start.trim(),
-      end: end.trim() || undefined,
-      title: title.trim(),
-      kind: (customKind ? kind : kind) || undefined,
-      place: online ? 'Дистанционно (дома)' : place.trim(),
-      parity: parity === 'all' ? undefined : parity,
-      online,
-      destination: online ? 'university' : destination,
-    });
+    if (end && end <= start) {
+      setError('Окончание должно быть позже начала');
+      return;
+    }
+    savingRef.current = true;
+    setSaving(true);
+    try {
+      await onSave({
+        id: item?.id,
+        day: Number(day),
+        start: start.trim(),
+        end: end.trim() || undefined,
+        title: title.trim(),
+        kind: (customKind ? kind : kind) || undefined,
+        place: online ? 'Дистанционно (дома)' : place.trim(),
+        parity: parity === 'all' ? undefined : parity,
+        online,
+        destination: online ? 'university' : destination,
+      });
+    } finally {
+      savingRef.current = false;
+      setSaving(false);
+    }
   };
 
   return (
@@ -108,20 +126,11 @@ export function ClassModal({ item, initialDay = 1, onClose, onSave, onDelete }: 
         <div className="form-row">
           <label>
             Начало
-            <input
-              type="time"
-              value={start}
-              onChange={(e) => setStart(e.target.value)}
-              required
-            />
+            <input type="time" value={start} onChange={(e) => setStart(e.target.value)} required />
           </label>
           <label>
             Окончание
-            <input
-              type="time"
-              value={end}
-              onChange={(e) => setEnd(e.target.value)}
-            />
+            <input type="time" value={end} onChange={(e) => setEnd(e.target.value)} />
           </label>
         </div>
 
@@ -252,8 +261,8 @@ export function ClassModal({ item, initialDay = 1, onClose, onSave, onDelete }: 
           <button type="button" className="ghost" onClick={onClose}>
             Отмена
           </button>
-          <button type="button" className="primary" onClick={handleSave}>
-            Сохранить
+          <button type="button" className="primary" disabled={saving} onClick={handleSave}>
+            {saving ? 'Сохраняем…' : 'Сохранить'}
           </button>
         </div>
       </section>

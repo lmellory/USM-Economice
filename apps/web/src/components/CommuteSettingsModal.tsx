@@ -61,9 +61,7 @@ export function CommuteSettingsModal({
     }
     const timer = setTimeout(async () => {
       try {
-        const res = await request(
-          `/api/transit/stops?q=${encodeURIComponent(searchQuery.trim())}`
-        );
+        const res = await request(`/api/transit/stops?q=${encodeURIComponent(searchQuery.trim())}`);
         setSearchResults(res.stops || []);
       } catch {
         setSearchResults([]);
@@ -116,8 +114,8 @@ export function CommuteSettingsModal({
     setSaving(true);
     try {
       await onSaveOption(activeOpt.id, {
-        walk_before_minutes: Number(walkBefore) || 7,
-        walk_after_minutes: Number(walkAfter) || 5,
+        walk_before_minutes: Number.isFinite(walkBefore) ? Math.max(0, walkBefore) : 7,
+        walk_after_minutes: Number.isFinite(walkAfter) ? Math.max(0, walkAfter) : 5,
         legs,
         is_configured: true,
       });

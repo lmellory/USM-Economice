@@ -1,10 +1,18 @@
 import React, { useEffect, useMemo, useState, useRef, Suspense } from 'react';
 import { createRoot } from 'react-dom/client';
-import { BookOpen, CalendarDays, CircleAlert, GraduationCap, Map as MapIcon, X } from 'lucide-react';
+import {
+  BookOpen,
+  CalendarDays,
+  CircleAlert,
+  GraduationCap,
+  Map as MapIcon,
+  X,
+} from 'lucide-react';
 import './style.css';
 import './telegram.css';
 import './dark.css';
 import './pink.css';
+import './improvements.css';
 
 import { applyTheme, request, tg, vibrate } from './lib/api.js';
 import {
@@ -44,7 +52,13 @@ function getNowMinutes(): number {
 }
 
 export const DEFAULT_APP_SETTINGS = {
-  theme: (typeof localStorage !== 'undefined' && localStorage.getItem('usm_theme')) || 'light',
+  theme: (() => {
+    try {
+      return localStorage.getItem('usm_theme') || 'light';
+    } catch {
+      return 'light';
+    }
+  })(),
   sleep_hours: 8,
   sleep_latency: 15,
   wash_minutes: 20,
@@ -63,7 +77,9 @@ export const DEFAULT_APP_SETTINGS = {
 };
 
 export function App() {
-  const [view, setView] = useState<'home' | 'schedule' | 'hw' | 'map' | 'settings' | 'admin'>('home');
+  const [view, setView] = useState<'home' | 'schedule' | 'hw' | 'map' | 'settings' | 'admin'>(
+    'home'
+  );
   const [isAdmin, setIsAdmin] = useState(false);
   const [selected, setSelected] = useState(new Date());
   const [weekOffset, setWeekOffset] = useState(0);
@@ -87,9 +103,17 @@ export function App() {
   const [exceptionModal, setExceptionModal] = useState(false);
   const [selectedExceptionClass, setSelectedExceptionClass] = useState<ClassItem | null>(null);
   const [ready, setReady] = useState(false);
+  const [bootstrapFailed, setBootstrapFailed] = useState(false);
   const [error, setError] = useState('');
   const [tab, setTab] = useState('На сегодня');
   const [nowMinutes, setNowMinutes] = useState(getNowMinutes);
+  const settingsQueue = useRef<Promise<void>>(Promise.resolve());
+  const confirmedSettings = useRef<any>(DEFAULT_APP_SETTINGS);
+  const pendingSettings = useRef(new Map<number, any>());
+  const settingsRevision = useRef(0);
+  const [settingsSaveState, setSettingsSaveState] = useState<'idle' | 'saving' | 'saved' | 'error'>(
+    'idle'
+  );
   const previousViewRef = useRef<'home' | 'schedule' | 'hw' | 'map'>('home');
 
   const tgUser = tg?.initDataUnsafe?.user;
@@ -124,7 +148,8 @@ export function App() {
       try {
         const data = await request('/api/bootstrap');
         if (data?.settings && typeof data.settings === 'object') {
-          setSettings((prev: any) => ({ ...prev, ...data.settings }));
+          confirmedSettings.current = { ...DEFAULT_APP_SETTINGS, ...data.settings };
+          setSettings(confirmedSettings.current);
         }
         setSchedule(data?.classes || data?.schedule || baseSchedule);
         setExceptions(data?.exceptions || []);
@@ -148,6 +173,7 @@ export function App() {
           setIsAdmin(Boolean(data.isAdmin));
         }
       } catch (e: any) {
+        setBootstrapFailed(true);
         if (tg?.initData) setError(e.message);
         else
           setError(
@@ -252,6 +278,13 @@ export function App() {
   };
 
   const daySchedule = scheduleFor(selected);
+  const tomorrowKey = dateShift(todayKey, 1);
+  const tomorrowSchedule = scheduleFor(localNoon(tomorrowKey));
+  const tomorrowRoutine = calculateMorningRoutine(
+    tomorrowSchedule.classes,
+    settings,
+    transit?.estimateMinutes ?? 35
+  );
 
   const weekStart = useMemo(() => {
     const d = localNoon(todayKey);
@@ -281,17 +314,34 @@ export function App() {
     return calculateMorningRoutine(daySchedule.classes, safe, transit?.estimateMinutes || 35);
   }, [daySchedule.classes, settings, transit?.estimateMinutes]);
 
-  const saveSettings = async (patch: any) => {
-    setSettings((s: any) => ({ ...s, ...patch }));
-    try {
-      const saved = await request('/api/settings', {
-        method: 'PUT',
-        body: JSON.stringify(patch),
-      });
-      setSettings(saved);
-    } catch (e: any) {
-      setError(e.message);
-    }
+  const saveSettings = (patch: any): Promise<void> => {
+    const revision = ++settingsRevision.current;
+    pendingSettings.current.set(revision, patch);
+    setSettings((previous: any) => ({ ...previous, ...patch }));
+    setSettingsSaveState('saving');
+    const rebuildSettings = () => {
+      const next = { ...confirmedSettings.current };
+      for (const pending of pendingSettings.current.values()) Object.assign(next, pending);
+      setSettings(next);
+    };
+    const operation = settingsQueue.current.then(async () => {
+      try {
+        confirmedSettings.current = await request('/api/settings', {
+          method: 'PUT',
+          body: JSON.stringify(patch),
+        });
+        pendingSettings.current.delete(revision);
+        rebuildSettings();
+        if (revision === settingsRevision.current) setSettingsSaveState('saved');
+      } catch (e: any) {
+        pendingSettings.current.delete(revision);
+        rebuildSettings();
+        if (revision === settingsRevision.current) setSettingsSaveState('error');
+        setError(e.message);
+      }
+    });
+    settingsQueue.current = operation.catch(() => {});
+    return operation;
   };
 
   const saveHw = async (body: any) => {
@@ -436,6 +486,24 @@ export function App() {
     }
   };
 
+  if (!ready)
+    return (
+      <main className="app loading-screen" aria-busy="true">
+        <h1>USM | Economice</h1>
+        <p>Загружаем твой день…</p>
+      </main>
+    );
+  if (bootstrapFailed)
+    return (
+      <main className="app loading-screen">
+        <h1>Не удалось загрузить данные</h1>
+        <p role="alert">{error}</p>
+        <button type="button" className="primary-btn" onClick={() => window.location.reload()}>
+          Попробовать ещё раз
+        </button>
+      </main>
+    );
+
   return (
     <main className={`app view-${view}`}>
       <header className="top">
@@ -443,7 +511,7 @@ export function App() {
           <div className="brand-mark">
             <CalendarDays size={19} />
           </div>
-          <span>тихий план</span>
+          <span>USM | Economice</span>
         </div>
         <button
           type="button"
@@ -467,7 +535,11 @@ export function App() {
           ) : (
             <span className="avatar-fallback">{avatarLetter}</span>
           )}
-          {isAdmin && <span className="header-admin-crown" title="Администратор">👑</span>}
+          {isAdmin && (
+            <span className="header-admin-crown" title="Администратор">
+              👑
+            </span>
+          )}
         </button>
       </header>
 
@@ -482,6 +554,7 @@ export function App() {
         <SettingsView
           settings={settings}
           transit={transit}
+          saveState={settingsSaveState}
           save={saveSettings}
           onBack={() => {
             vibrate();
@@ -546,6 +619,11 @@ export function App() {
           todayKey={todayKey}
           selectedInfo={selectedInfo}
           daySchedule={daySchedule}
+          tomorrow={{
+            key: tomorrowKey,
+            classes: tomorrowSchedule.classes,
+            routine: tomorrowRoutine,
+          }}
           studyWeekLabel={studyWeekLabel}
           settings={settings}
           routine={routine}
@@ -602,6 +680,7 @@ export function App() {
       {modal && (
         <HomeworkModal
           item={editing}
+          subjects={[...new Set(schedule.map((item) => item.title))]}
           reminderMinutes={settings.reminder_minutes ?? 60}
           onClose={() => {
             setModal(false);

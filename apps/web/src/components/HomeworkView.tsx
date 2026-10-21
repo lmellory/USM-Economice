@@ -13,12 +13,15 @@ interface HomeworkViewProps {
 
 export function HomeworkView({ items, tab, setTab, onAdd, onEdit, onDone }: HomeworkViewProps) {
   const todayKey = dateParts(new Date()).key;
-  const tabs = ['На сегодня', 'Скоро', 'Без срока', 'Выполненные'];
+  const tabs = ['На сегодня', 'Просрочено', 'Скоро', 'Без срока', 'Выполненные'];
 
   const lists: Record<string, any[]> = {
     'На сегодня': items.filter((x) => !x.completed && x.due_date === todayKey),
+    Просрочено: items
+      .filter((x) => !x.completed && x.due_date && x.due_date < todayKey)
+      .sort((a, b) => String(a.due_date).localeCompare(String(b.due_date))),
     Скоро: items
-      .filter((x) => !x.completed && x.due_date && x.due_date !== todayKey)
+      .filter((x) => !x.completed && x.due_date && x.due_date > todayKey)
       .sort((a, b) => String(a.due_at || a.due_date).localeCompare(String(b.due_at || b.due_date))),
     'Без срока': items.filter((x) => !x.completed && !x.due_date),
     Выполненные: items.filter((x) => x.completed),
@@ -52,9 +55,10 @@ export function HomeworkView({ items, tab, setTab, onAdd, onEdit, onDone }: Home
             type="button"
             onClick={() => setTab(t)}
             className={tab === t ? 'selected' : ''}
+            aria-pressed={tab === t}
           >
             {t}
-            {t === 'На сегодня' && lists[t].length > 0 && <i>{lists[t].length}</i>}
+            {lists[t].length > 0 && <i>{lists[t].length}</i>}
           </button>
         ))}
       </div>
@@ -62,7 +66,10 @@ export function HomeworkView({ items, tab, setTab, onAdd, onEdit, onDone }: Home
       <div className="hw-list">
         {currentList.length ? (
           currentList.map((x) => (
-            <article className={`task-card ${x.completed ? 'done' : ''}`} key={x.id}>
+            <article
+              className={`task-card ${x.completed ? 'done' : ''} ${!x.completed && x.due_date < todayKey ? 'overdue' : ''}`}
+              key={x.id}
+            >
               <button
                 type="button"
                 className={`check-task ${x.completed ? 'checked' : ''}`}
@@ -76,6 +83,7 @@ export function HomeworkView({ items, tab, setTab, onAdd, onEdit, onDone }: Home
                 {x.subject && <span>{x.subject}</span>}
                 {x.note && <p>{x.note}</p>}
                 <small>
+                  {!x.completed && x.due_date && x.due_date < todayKey && 'Просрочено · '}
                   {x.due_date
                     ? x.due_date === todayKey
                       ? 'Сегодня'
@@ -105,11 +113,13 @@ export function HomeworkView({ items, tab, setTab, onAdd, onEdit, onDone }: Home
             <b>
               {tab === 'На сегодня'
                 ? 'На сегодня заданий нет'
-                : tab === 'Скоро'
-                  ? 'Пока нет ближайших сроков'
-                  : tab === 'Без срока'
-                    ? 'Заданий без срока нет'
-                    : 'Здесь появятся выполненные'}
+                : tab === 'Просрочено'
+                  ? 'Просроченных заданий нет'
+                  : tab === 'Скоро'
+                    ? 'Пока нет ближайших сроков'
+                    : tab === 'Без срока'
+                      ? 'Заданий без срока нет'
+                      : 'Здесь появятся выполненные'}
             </b>
             <p>
               {tab === 'Выполненные'

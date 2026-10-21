@@ -1,4 +1,10 @@
-import { ClassItem, RoutineResult, RoutineSettings, ScheduleException, WeekParity } from './types.js';
+import {
+  ClassItem,
+  RoutineResult,
+  RoutineSettings,
+  ScheduleException,
+  WeekParity,
+} from './types.js';
 import { hm, localNoon, min } from './time.js';
 
 export const baseSchedule: ClassItem[] = [
@@ -211,8 +217,8 @@ export const calculateMorningRoutine = (
   const first = sorted[0];
   const firstCampus = !first.online;
 
-  const travelDuration = Number(settings.travel_minutes || transitMinutes || 35);
-  const travelBuffer = Number(settings.travel_buffer || 10);
+  const travelDuration = Number(settings.travel_minutes ?? transitMinutes ?? 35);
+  const travelBuffer = Number(settings.travel_buffer ?? 10);
 
   const washTime = Number(settings.wash_minutes ?? 20);
   const hairDryTime = Number(settings.hair_dry_minutes ?? 5);
@@ -252,10 +258,12 @@ export const calculateMorningRoutine = (
   const latestWakeAt = deadlineForPrep - prep;
 
   const sleepHours = Number(settings.sleep_hours || 8);
-  const sleepLatency = Number(settings.sleep_latency || 15);
+  const sleepLatency = Number(settings.sleep_latency ?? 15);
 
   const targetBedStr = settings.target_bedtime || '00:15';
-  const targetBedMin = min(targetBedStr);
+  const clockBedMin = min(targetBedStr);
+  // An evening bedtime belongs to the day before the morning routine.
+  const targetBedMin = clockBedMin >= 12 * 60 ? clockBedMin - 24 * 60 : clockBedMin;
   const naturalWakeMin = targetBedMin + Math.round(sleepHours * 60);
 
   let bedtime: number;

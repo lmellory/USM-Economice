@@ -23,6 +23,7 @@ migrations_dir = "migrations"
 crons = ["* * * * *"]
 
 [vars]
+ADMIN_USER_IDS = "8624922366"
 TZ = "Europe/Chisinau"
 TRANZY_VEHICLES_URL = "https://api.tranzy.ai/v1/opendata/vehicles"
 TRANZY_REFRESH_MINUTES = "5"

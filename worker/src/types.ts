@@ -16,6 +16,7 @@ export interface Env {
   GOOGLE_MAPS_BROWSER_KEY?: string;
   TZ?: string;
   ADMIN_USER_ID?: string;
+  ADMIN_USER_IDS?: string;
 }
 
 export interface TelegramUser {
