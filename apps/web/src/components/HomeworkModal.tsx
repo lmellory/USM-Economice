@@ -5,6 +5,7 @@ import { TZ, zonedIso } from '../lib/time.js';
 interface HomeworkModalProps {
   item: any | null;
   reminderMinutes: number;
+  nextClassFor: (subject: string) => { date: string; time: string } | null;
   subjects: string[];
   onClose: () => void;
   onSave: (payload: any) => Promise<void>;
@@ -14,6 +15,7 @@ export function HomeworkModal({
   item,
   subjects,
   reminderMinutes,
+  nextClassFor,
   onClose,
   onSave,
 }: HomeworkModalProps) {
@@ -35,6 +37,8 @@ export function HomeworkModal({
   const [note, setNote] = useState(item?.note || '');
   const [remind, setRemind] = useState(item?.telegram_reminder || false);
   const [custom, setCustom] = useState(Boolean(item?.subject && !subjects.includes(item.subject)));
+
+  const nextClass = nextClassFor(subject);
 
   const handleSave = async () => {
     if (!title.trim() || savingRef.current) return;
@@ -116,6 +120,24 @@ export function HomeworkModal({
             />
           )}
         </label>
+
+        {nextClass && (
+          <button
+            type="button"
+            className="next-class-deadline"
+            onClick={() => {
+              setDueDate(nextClass.date);
+              setDueTime(nextClass.time);
+            }}
+          >
+            К следующей паре ·{' '}
+            {new Date(nextClass.date + 'T12:00:00Z').toLocaleDateString('ru-RU', {
+              day: 'numeric',
+              month: 'short',
+            })}
+            , {nextClass.time}
+          </button>
+        )}
 
         <label>
           Дата срока <span className="optional">можно не указывать</span>

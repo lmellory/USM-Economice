@@ -1,13 +1,10 @@
 import React, { useEffect, useState } from 'react';
 import {
   Bell,
-  Bus,
   CalendarDays,
   ChevronLeft,
   ChevronRight,
-  CircleAlert,
   Crown,
-  House,
   Moon,
   ShieldCheck,
   Sparkles,
@@ -18,10 +15,8 @@ import { Toggle } from './Toggle.js';
 interface SettingsViewProps {
   settings: any;
   saveState?: 'idle' | 'saving' | 'saved' | 'error';
-  transit: any;
   save: (patch: any) => Promise<void>;
   onBack: () => void;
-  onOpenCommuteSettings?: () => void;
   isAdmin?: boolean;
   onOpenAdmin?: () => void;
 }
@@ -29,21 +24,12 @@ interface SettingsViewProps {
 export function SettingsView({
   settings,
   saveState = 'idle',
-  transit,
   save,
   onBack,
-  onOpenCommuteSettings,
   isAdmin,
   onOpenAdmin,
 }: SettingsViewProps) {
-  const [homeAddress, setHomeAddress] = useState(settings.home_address || '');
-  const [universityAddress, setUniversityAddress] = useState(settings.university_address || '');
   const [numericDrafts, setNumericDrafts] = useState<Record<string, string>>({});
-  useEffect(() => setHomeAddress(settings.home_address || ''), [settings.home_address]);
-  useEffect(
-    () => setUniversityAddress(settings.university_address || ''),
-    [settings.university_address]
-  );
   const [dur, setDur] = useState<string>(
     settings.english_duration != null ? String(settings.english_duration) : ''
   );
@@ -232,251 +218,191 @@ export function SettingsView({
         </label>
       </section>
 
-      <section className="setting-card">
-        <h3>
-          <Sunrise size={17} /> Английский и дорога
-        </h3>
-        <p>
-          Укажи длительность урока с репетитором (среда и пятница). Мы рассчитаем, успеваешь ли ты
-          на пары и когда выходить из дома.
-        </p>
-        <label className="setting-field">
-          Длительность онлайн-урока
-          <div>
-            <input
-              type="number"
-              min="1"
-              max="240"
-              placeholder="Например, 90"
-              value={dur}
-              onChange={(e) => setDur(e.target.value)}
-              onBlur={(e) => applyDuration(e.target.value)}
-              onKeyDown={(e) => {
-                if (e.key === 'Enter') applyDuration((e.target as HTMLInputElement).value);
-              }}
-            />
-            <span>мин</span>
+      <details className="setting-card setting-disclosure">
+        <summary>
+          <Sunrise size={17} /> Онлайн-занятия
+        </summary>
+        <div className="setting-disclosure-body">
+          <p>
+            Укажи длительность урока с репетитором (среда и пятница). Мы рассчитаем, успеваешь ли ты
+            на пары.
+          </p>
+          <label className="setting-field">
+            Длительность онлайн-урока
+            <div>
+              <input
+                type="number"
+                min="1"
+                max="240"
+                placeholder="Например, 90"
+                value={dur}
+                onChange={(e) => setDur(e.target.value)}
+                onBlur={(e) => applyDuration(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter') applyDuration((e.target as HTMLInputElement).value);
+                }}
+              />
+              <span>мин</span>
+            </div>
+          </label>
+          <div className="duration-chips">
+            {[45, 60, 80, 90, 120].map((m) => (
+              <button
+                key={m}
+                type="button"
+                className={Number(dur) === m ? 'on' : ''}
+                onClick={() => {
+                  setDur(String(m));
+                  save({ english_duration: m, englishDuration: m });
+                }}
+              >
+                {m} мин
+              </button>
+            ))}
+            {dur && (
+              <button type="button" className="clear" onClick={() => applyDuration('')}>
+                Сбросить
+              </button>
+            )}
           </div>
-        </label>
-        <div className="duration-chips">
-          {[45, 60, 80, 90, 120].map((m) => (
-            <button
-              key={m}
-              type="button"
-              className={Number(dur) === m ? 'on' : ''}
-              onClick={() => {
-                setDur(String(m));
-                save({ english_duration: m, englishDuration: m });
+        </div>
+      </details>
+
+      <details className="setting-card setting-disclosure">
+        <summary>
+          <Moon size={17} /> Режим сна и утро
+        </summary>
+        <div className="setting-disclosure-body">
+          <p>
+            Настрой привычное время засыпания, душ, сушку головы, завтрак и сборы. Мы рассчитаем
+            подъём и свободное время до выхода.
+          </p>
+          <div style={{ marginBottom: 12 }}>
+            <span
+              style={{
+                font: "600 12px/1 'Inter'",
+                color: 'var(--muted)',
+                display: 'block',
+                marginBottom: 6,
               }}
             >
-              {m} мин
-            </button>
-          ))}
-          {dur && (
-            <button type="button" className="clear" onClick={() => applyDuration('')}>
-              Сбросить
-            </button>
-          )}
+              Привычное время сна (засыпание)
+            </span>
+            <div className="duration-chips">
+              {['23:30', '00:00', '00:15', '00:30', '01:00'].map((t) => (
+                <button
+                  key={t}
+                  type="button"
+                  className={
+                    settings.target_bedtime === t || (!settings.target_bedtime && t === '00:15')
+                      ? 'on'
+                      : ''
+                  }
+                  onClick={() => save({ target_bedtime: t, targetBedtime: t })}
+                >
+                  {t}
+                </button>
+              ))}
+            </div>
+          </div>
+          <div className="setting-grid">
+            {field('sleep_hours', 'Цель сна', 'ч', '0.5')}
+            {field('sleep_latency', 'На засыпание', 'мин')}
+            {field('wash_minutes', 'Душ и голова', 'мин')}
+            {field('hair_dry_minutes', 'Сушка головы', 'мин')}
+            {field('breakfast_minutes', 'Завтрак', 'мин')}
+            {field('get_ready_minutes', 'Сборы', 'мин')}
+            {field('travel_minutes', 'Время в дороге', 'мин')}
+            {field('travel_buffer', 'Запас на дорогу', 'мин')}
+          </div>
         </div>
-        <div className="notice">
-          <CircleAlert size={15} />
-          {transit.available
-            ? `Tranzy отвечает: получено ${transit.liveVehicleCount ?? 0} позиций RTEC/PUA в реальном времени.`
-            : `${transit.note || 'Tranzy пока недоступен.'} Последняя проверка: ${
-                transit.checkedAt
-                  ? new Date(transit.checkedAt).toLocaleString('ru-RU', {
-                      timeZone: 'Europe/Chisinau',
-                    })
-                  : 'нет данных'
-              }.`}
+      </details>
+
+      <details className="setting-card setting-disclosure">
+        <summary>
+          <Bell size={17} /> Telegram-напоминания
+        </summary>
+        <div className="setting-disclosure-body">
+          <p>Сообщения придут только после включения.</p>
+          <Toggle
+            label="Напоминания о сроках ДЗ"
+            value={Boolean(settings.reminders_enabled)}
+            onChange={(v: boolean) => save({ remindersEnabled: v, reminders_enabled: v })}
+          />
+          <label className="setting-field">
+            За сколько до срока
+            <div>
+              <input
+                type="number"
+                min="0"
+                value={numericDrafts.reminder_minutes ?? settings.reminder_minutes ?? 60}
+                onChange={(e) =>
+                  setNumericDrafts((drafts) => ({ ...drafts, reminder_minutes: e.target.value }))
+                }
+                onBlur={(e) => {
+                  const value = e.target.value;
+                  setNumericDrafts((drafts) => {
+                    const next = { ...drafts };
+                    delete next.reminder_minutes;
+                    return next;
+                  });
+                  if (value.trim() && Number.isFinite(Number(value)) && Number(value) >= 0)
+                    void save({ reminder_minutes: Number(value) });
+                }}
+              />
+              <span>мин</span>
+            </div>
+          </label>
+          <Toggle
+            label="Напомнить о подъёме"
+            value={Boolean(settings.wake_reminder)}
+            onChange={(v: boolean) => save({ wakeReminder: v, wake_reminder: v })}
+          />
+          <Toggle
+            label="Напомнить о времени сна"
+            value={Boolean(settings.sleep_reminder)}
+            onChange={(v: boolean) => save({ sleepReminder: v, sleep_reminder: v })}
+          />
+          <Toggle
+            label="Напомнить о выходе из дома"
+            value={Boolean(settings.leave_reminder)}
+            onChange={(v: boolean) => save({ leaveReminder: v, leave_reminder: v })}
+          />
+          <div className="notice">
+            Время подъёма и выхода рассчитывается заранее — Telegram напомнит, когда пора собираться
+            и выходить.
+          </div>
         </div>
-        {onOpenCommuteSettings && (
-          <div style={{ marginTop: 12 }}>
-            <button
-              type="button"
-              className="btn-primary"
+      </details>
+
+      <details className="setting-card setting-disclosure">
+        <summary>
+          <ShieldCheck size={17} /> О приложении и конфиденциальность
+        </summary>
+        <div className="setting-disclosure-body">
+          <p style={{ margin: '4px 0 12px', fontSize: '0.85rem', color: 'var(--muted, #64748b)' }}>
+            USM | Economice · Расписание, задания и подготовка к экзаменам.
+          </p>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+            <a
+              href="/privacy.html"
+              target="_blank"
+              rel="noopener noreferrer"
               style={{
                 display: 'inline-flex',
                 alignItems: 'center',
-                gap: 8,
-                width: '100%',
-                justifyContent: 'center',
-                padding: '10px 14px',
-                fontSize: 13,
-                fontWeight: 600,
+                gap: '8px',
+                fontSize: '0.9rem',
+                color: 'var(--primary, #0284c7)',
+                textDecoration: 'none',
+                fontWeight: 500,
               }}
-              onClick={onOpenCommuteSettings}
             >
-              <Bus size={15} /> Настроить маршруты и остановки дороги
-            </button>
-          </div>
-        )}
-      </section>
-
-      <section className="setting-card">
-        <h3>
-          <Moon size={17} /> Режим сна и утро
-        </h3>
-        <p>
-          Настрой привычное время засыпания, душ, сушку головы, завтрак и сборы. Мы рассчитаем
-          подъём и свободное время до выхода.
-        </p>
-        <div style={{ marginBottom: 12 }}>
-          <span
-            style={{
-              font: "600 12px/1 'Inter'",
-              color: 'var(--muted)',
-              display: 'block',
-              marginBottom: 6,
-            }}
-          >
-            Привычное время сна (засыпание)
-          </span>
-          <div className="duration-chips">
-            {['23:30', '00:00', '00:15', '00:30', '01:00'].map((t) => (
-              <button
-                key={t}
-                type="button"
-                className={
-                  settings.target_bedtime === t || (!settings.target_bedtime && t === '00:15')
-                    ? 'on'
-                    : ''
-                }
-                onClick={() => save({ target_bedtime: t, targetBedtime: t })}
-              >
-                {t}
-              </button>
-            ))}
+              <ShieldCheck size={16} /> Политика конфиденциальности (Privacy Policy)
+            </a>
           </div>
         </div>
-        <div className="setting-grid">
-          {field('sleep_hours', 'Цель сна', 'ч', '0.5')}
-          {field('sleep_latency', 'На засыпание', 'мин')}
-          {field('wash_minutes', 'Душ и голова', 'мин')}
-          {field('hair_dry_minutes', 'Сушка головы', 'мин')}
-          {field('breakfast_minutes', 'Завтрак', 'мин')}
-          {field('get_ready_minutes', 'Сборы', 'мин')}
-          {field('travel_minutes', 'Время в дороге', 'мин')}
-          {field('travel_buffer', 'Запас на дорогу', 'мин')}
-        </div>
-      </section>
-
-      <section className="setting-card">
-        <h3>
-          <House size={17} /> Адреса
-        </h3>
-        <p>Сохраняются в приватных настройках профиля и не попадают в логи.</p>
-        <label className="setting-field">
-          Дом
-          <input
-            value={homeAddress}
-            onChange={(e) => setHomeAddress(e.target.value)}
-            placeholder="Введи адрес дома"
-            onBlur={(e) =>
-              save({
-                homeAddress: e.target.value || null,
-                home_address: e.target.value || null,
-              })
-            }
-          />
-        </label>
-        <label className="setting-field">
-          Университет
-          <input
-            value={universityAddress}
-            onChange={(e) => setUniversityAddress(e.target.value)}
-            placeholder="Введи адрес университета"
-            onBlur={(e) =>
-              save({
-                universityAddress: e.target.value || null,
-                university_address: e.target.value || null,
-              })
-            }
-          />
-        </label>
-      </section>
-
-      <section className="setting-card">
-        <h3>
-          <Bell size={17} /> Telegram-напоминания
-        </h3>
-        <p>Сообщения придут только после включения.</p>
-        <Toggle
-          label="Напоминания о сроках ДЗ"
-          value={Boolean(settings.reminders_enabled)}
-          onChange={(v: boolean) => save({ remindersEnabled: v, reminders_enabled: v })}
-        />
-        <label className="setting-field">
-          За сколько до срока
-          <div>
-            <input
-              type="number"
-              min="0"
-              value={numericDrafts.reminder_minutes ?? settings.reminder_minutes ?? 60}
-              onChange={(e) =>
-                setNumericDrafts((drafts) => ({ ...drafts, reminder_minutes: e.target.value }))
-              }
-              onBlur={(e) => {
-                const value = e.target.value;
-                setNumericDrafts((drafts) => {
-                  const next = { ...drafts };
-                  delete next.reminder_minutes;
-                  return next;
-                });
-                if (value.trim() && Number.isFinite(Number(value)) && Number(value) >= 0)
-                  void save({ reminder_minutes: Number(value) });
-              }}
-            />
-            <span>мин</span>
-          </div>
-        </label>
-        <Toggle
-          label="Напомнить о подъёме"
-          value={Boolean(settings.wake_reminder)}
-          onChange={(v: boolean) => save({ wakeReminder: v, wake_reminder: v })}
-        />
-        <Toggle
-          label="Напомнить о времени сна"
-          value={Boolean(settings.sleep_reminder)}
-          onChange={(v: boolean) => save({ sleepReminder: v, sleep_reminder: v })}
-        />
-        <Toggle
-          label="Напомнить о выходе из дома"
-          value={Boolean(settings.leave_reminder)}
-          onChange={(v: boolean) => save({ leaveReminder: v, leave_reminder: v })}
-        />
-        <div className="notice">
-          Время подъёма и выхода рассчитывается заранее — Telegram напомнит, когда пора собираться и
-          выходить.
-        </div>
-      </section>
-
-      <section className="setting-card">
-        <h3>
-          <ShieldCheck size={17} /> О приложении и конфиденциальность
-        </h3>
-        <p style={{ margin: '4px 0 12px', fontSize: '0.85rem', color: 'var(--muted, #64748b)' }}>
-          USM Life v1.2 · Персональный студенческий ассистент с онлайн-транспортом и погодой.
-        </p>
-        <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
-          <a
-            href="/privacy.html"
-            target="_blank"
-            rel="noopener noreferrer"
-            style={{
-              display: 'inline-flex',
-              alignItems: 'center',
-              gap: '8px',
-              fontSize: '0.9rem',
-              color: 'var(--primary, #0284c7)',
-              textDecoration: 'none',
-              fontWeight: 500,
-            }}
-          >
-            <ShieldCheck size={16} /> Политика конфиденциальности (Privacy Policy)
-          </a>
-        </div>
-      </section>
+      </details>
     </>
   );
 }

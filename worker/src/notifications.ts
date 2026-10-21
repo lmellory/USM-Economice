@@ -1,3 +1,4 @@
+import { queueAssessmentReminders, assessmentReminderMessage } from './assessments.js';
 import {
   applyScheduleExceptions,
   baseSchedule,
@@ -9,7 +10,6 @@ import {
   toChisinauDate,
 } from '@usm/shared';
 import { mapClassRow, mapExceptionRow } from './classes.js';
-import { evaluateUserCommute } from './commute.js';
 import { Env } from './types.js';
 import { createDb } from './db.js';
 
@@ -423,6 +423,8 @@ export async function notificationTick(env: Env): Promise<void> {
     )
     .first<{ c: number }>();
 
+  await queueAssessmentReminders(db, now);
+
   // Check pending notifications queue first
   const pending = await db
     .prepare(
@@ -512,41 +514,8 @@ export async function notificationTick(env: Env): Promise<void> {
         ? activeDaily.find((c) => !c.online)
         : activeDaily[0];
 
-      let actualCommuteMinutes = Number(u.travel_minutes || 35);
-      let vehicleNote = '';
-
-      if (targetCampus) {
-        const dest = (targetCampus.destination ||
-          (targetCampus.place?.includes('Ismail') || targetCampus.title?.includes('физ')
-            ? 'sports'
-            : 'university')) as 'university' | 'sports';
-        try {
-          const evalRes = await evaluateUserCommute(env, u.user_id, dest, targetCampus.start);
-          const best = evalRes.options.find((o) => o.isRecommended) || evalRes.options[0];
-          if (best && best.isConfigured) {
-            actualCommuteMinutes = best.totalDurationMinutes;
-            const leg0 = best.legs[0];
-            if (leg0?.firstVehicleEtaMinutes != null) {
-              const onLine = leg0.vehiclesOnLineCount
-                ? ` (${leg0.vehiclesOnLineCount} на рейсе)`
-                : '';
-              const near = leg0.nearbyVehiclesCount
-                ? `, ${leg0.nearbyVehiclesCount} у остановки`
-                : '';
-              const dist = leg0.closestVehicleDistanceMeters
-                ? ` · ${leg0.closestVehicleDistanceMeters} м`
-                : '';
-              if (dest === 'sports') {
-                vehicleNote = `17-й через ${leg0.firstVehicleEtaMinutes} мин${dist}${onLine}${near}`;
-              } else {
-                vehicleNote = `Ближайший №${leg0.chosenRouteName} через ${leg0.firstVehicleEtaMinutes} мин${dist}${onLine}${near}`;
-              }
-            }
-          }
-        } catch {
-          // fallback to user setting
-        }
-      }
+      const actualCommuteMinutes = Number(u.travel_minutes ?? 35);
+      const vehicleNote = '';
 
       const routine = calculateMorningRoutine(
         activeDaily,
@@ -604,7 +573,16 @@ export async function notificationTick(env: Env): Promise<void> {
     const pieces = String(n.event_key).split(':');
     let message = '';
 
-    if (pieces[0] === 'homework') {
+    if (pieces[0] === 'assessment') {
+      message = (await assessmentReminderMessage(db, n.user_id, String(n.event_key), now)) || '';
+      if (!message) {
+        await db
+          .prepare('UPDATE notification_log SET sent_at=?,next_attempt=NULL WHERE id=?')
+          .bind(nowIso, n.id)
+          .run();
+        continue;
+      }
+    } else if (pieces[0] === 'homework') {
       const h = await db
         .prepare(
           'SELECT title,due_at,due_date FROM homework WHERE id=? AND user_id=? AND completed=0'

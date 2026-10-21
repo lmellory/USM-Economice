@@ -1,3 +1,4 @@
+import { handleAssessments, mapAssessment } from './assessments.js';
 import { baseSchedule } from '@usm/shared';
 import { verifyInitData } from './auth.js';
 import {
@@ -11,8 +12,8 @@ import { createDb } from './db.js';
 import { handleHomework, json } from './homework.js';
 import { notificationTick } from './notifications.js';
 import { dbSettings, validatedSettings } from './settings.js';
-import { saveTransit, transit } from './transit.js';
-import { getUserCommuteOptions, handleTransitRoutes } from './commute.js';
+import { transit } from './transit.js';
+import { handleTransitRoutes } from './commute.js';
 import { handleTripPlan } from './trip-plan.js';
 import { Env } from './types.js';
 import { handleWebhook } from './webhook.js';
@@ -94,15 +95,14 @@ async function apiRequest(request: Request, env: Env, path: string): Promise<Res
   if (path === '/api/bootstrap' && request.method === 'GET') {
     let settingsRow: any = null;
     let homeworkResults: any[] = [];
+    let assessmentsList: any[] = [];
     let classesList: any[] = [];
     let exceptionsList: any[] = [];
-    let transitRow: any = null;
-    let commuteOptions: any[] = [];
 
     try {
       await ensureClassesPopulated(env, String(user.id));
 
-      const [sRow, homework, classRows, excRows, tRow] = await Promise.all([
+      const [sRow, homework, classRows, excRows, assessments] = await Promise.all([
         db.prepare('SELECT * FROM settings WHERE user_id=?').bind(String(user.id)).first(),
         db
           .prepare(
@@ -120,15 +120,17 @@ async function apiRequest(request: Request, env: Env, path: string): Promise<Res
           .prepare('SELECT * FROM schedule_exceptions WHERE user_id=? ORDER BY date ASC')
           .bind(String(user.id))
           .all(),
-        db.prepare('SELECT * FROM transit_state WHERE id=1').first<any>(),
+        db
+          .prepare('SELECT * FROM assessments WHERE user_id=? ORDER BY date,time')
+          .bind(String(user.id))
+          .all(),
       ]);
 
       settingsRow = sRow;
       homeworkResults = homework.results || [];
+      assessmentsList = assessments.results.map(mapAssessment);
       classesList = (classRows.results || []).map(mapClassRow);
       exceptionsList = (excRows.results || []).map(mapExceptionRow);
-      transitRow = tRow;
-      commuteOptions = await getUserCommuteOptions(env, String(user.id));
     } catch (d1Err) {
       console.warn('DB bootstrap query failed:', d1Err);
       return json(
@@ -137,35 +139,13 @@ async function apiRequest(request: Request, env: Env, path: string): Promise<Res
       );
     }
 
-    const t = transitRow
-      ? {
-          available: Boolean(transitRow.available),
-          source: transitRow.source,
-          checkedAt: transitRow.checked_at,
-          note: transitRow.note,
-          route: null,
-          estimateMinutes: transitRow.estimate_minutes,
-          liveVehicleCount: transitRow.vehicle_count ?? undefined,
-          routesSummary: transitRow.routes_summary ?? undefined,
-        }
-      : {
-          available: false,
-          source: 'Tranzy OpenData',
-          checkedAt: new Date().toISOString(),
-          note: 'Проверка транспорта запускается на сервере.',
-          route: null,
-          estimateMinutes: 30,
-        };
-
     return json({
       settings: dbSettings(settingsRow),
       homework: homeworkResults,
+      assessments: assessmentsList,
       schedule: classesList,
       classes: classesList,
       exceptions: exceptionsList,
-      transit: t,
-      commuteOptions,
-      mapsBrowserKey: env.GOOGLE_MAPS_BROWSER_KEY || '',
       isAdmin: isUserAdmin(env, String(user.id)),
     });
   }
@@ -235,6 +215,9 @@ async function apiRequest(request: Request, env: Env, path: string): Promise<Res
     }
   }
 
+  const assessmentPath = path.match(/^\/api\/assessments(?:\/([^/]+))?$/);
+  if (assessmentPath) return handleAssessments(request, env, String(user.id), assessmentPath[1]);
+
   const homeworkPath = path.match(/^\/api\/homework(?:\/([^/]+))?$/);
   if (homeworkPath) {
     return handleHomework(request, env, String(user.id), homeworkPath[1]);
@@ -283,20 +266,6 @@ export default {
   },
 
   async scheduled(_event: ScheduledController, env: Env, ctx: ExecutionContext): Promise<void> {
-    const db = createDb(env);
-    ctx.waitUntil(
-      Promise.allSettled([
-        (async () => {
-          const last = await db.prepare('SELECT checked_at FROM transit_state WHERE id=1').first<{
-            checked_at: string;
-          }>();
-          const minutes = Math.max(1, Number(env.TRANZY_REFRESH_MINUTES) || 5);
-          if (!last || Date.now() - Date.parse(last.checked_at) >= minutes * 60000) {
-            await saveTransit(env);
-          }
-        })(),
-        notificationTick(env),
-      ])
-    );
+    ctx.waitUntil(notificationTick(env));
   },
 };

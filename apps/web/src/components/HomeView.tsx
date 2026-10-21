@@ -165,8 +165,8 @@ export function HomeView({
                         : `Через ${min(focusClass.start) - nowMinutes} мин`}
                 </span>
                 {!focusClass.online && (
-                  <button type="button" onClick={() => navigate('map')}>
-                    Дорога <ArrowUpRight size={15} />
+                  <button type="button" onClick={() => navigate('settings')}>
+                    Время дороги <ArrowUpRight size={15} />
                   </button>
                 )}
               </div>

@@ -1,18 +1,16 @@
-import React, { useEffect, useMemo, useState, useRef, Suspense } from 'react';
+import React, { useEffect, useMemo, useState, useRef } from 'react';
 import { createRoot } from 'react-dom/client';
-import {
-  BookOpen,
-  CalendarDays,
-  CircleAlert,
-  GraduationCap,
-  Map as MapIcon,
-  X,
-} from 'lucide-react';
+import { BookOpen, CalendarDays, CircleAlert, GraduationCap, ClipboardList, X } from 'lucide-react';
 import './style.css';
 import './telegram.css';
 import './dark.css';
 import './pink.css';
 import './improvements.css';
+import './study.css';
+import { Assessment, AssessmentInput } from '@usm/shared';
+import { installViewportControls } from './lib/viewport.js';
+import { AssessmentModal } from './components/AssessmentModal.js';
+import { StudyView } from './components/StudyView.js';
 
 import { applyTheme, request, tg, vibrate } from './lib/api.js';
 import {
@@ -20,7 +18,6 @@ import {
   calculateMorningRoutine,
   calculateWeekParity,
   ClassItem,
-  CommuteOption,
   dayNames,
   getDaySchedule,
   ScheduleException,
@@ -28,7 +25,6 @@ import {
 import { dateParts, dateShift, localNoon, TZ } from './lib/time.js';
 
 import { ClassModal } from './components/ClassModal.js';
-import { CommuteSettingsModal } from './components/CommuteSettingsModal.js';
 import { ExceptionModal } from './components/ExceptionModal.js';
 import { HomeView } from './components/HomeView.js';
 import { HomeworkModal } from './components/HomeworkModal.js';
@@ -36,8 +32,6 @@ import { HomeworkView } from './components/HomeworkView.js';
 import { ScheduleView } from './components/ScheduleView.js';
 import { SettingsView } from './components/SettingsView.js';
 import { AdminView } from './components/AdminView.js';
-
-const TransitView = React.lazy(() => import('./components/TransitView.js'));
 
 function getNowMinutes(): number {
   const f = new Intl.DateTimeFormat('en-GB', {
@@ -77,7 +71,7 @@ export const DEFAULT_APP_SETTINGS = {
 };
 
 export function App() {
-  const [view, setView] = useState<'home' | 'schedule' | 'hw' | 'map' | 'settings' | 'admin'>(
+  const [view, setView] = useState<'home' | 'schedule' | 'hw' | 'study' | 'settings' | 'admin'>(
     'home'
   );
   const [isAdmin, setIsAdmin] = useState(false);
@@ -87,14 +81,11 @@ export function App() {
   const [schedule, setSchedule] = useState<ClassItem[]>(baseSchedule);
   const [exceptions, setExceptions] = useState<ScheduleException[]>([]);
   const [settings, setSettings] = useState<any>(DEFAULT_APP_SETTINGS);
-  const [transit, setTransit] = useState<any>({
-    available: false,
-    estimateMinutes: 35,
-    note: 'Загрузка…',
-  });
-  const [commuteOptions, setCommuteOptions] = useState<CommuteOption[]>([]);
-  const [mapsBrowserKey, setMapsBrowserKey] = useState<string>('');
-  const [commuteModal, setCommuteModal] = useState(false);
+  const [assessments, setAssessments] = useState<Assessment[]>([]);
+  const [assessmentModal, setAssessmentModal] = useState(false);
+  const [editingAssessment, setEditingAssessment] = useState<Assessment | null>(null);
+  const assessmentLocks = useRef(new Set<string>());
+  const [assessmentBusy, setAssessmentBusy] = useState(new Set<string>());
   const [modal, setModal] = useState(false);
   const [editing, setEditing] = useState<any>(null);
   const [classModal, setClassModal] = useState(false);
@@ -114,7 +105,7 @@ export function App() {
   const [settingsSaveState, setSettingsSaveState] = useState<'idle' | 'saving' | 'saved' | 'error'>(
     'idle'
   );
-  const previousViewRef = useRef<'home' | 'schedule' | 'hw' | 'map'>('home');
+  const previousViewRef = useRef<'home' | 'schedule' | 'hw' | 'study'>('home');
 
   const tgUser = tg?.initDataUnsafe?.user;
   const userPhotoUrl = tgUser?.photo_url;
@@ -122,6 +113,8 @@ export function App() {
     ? `${tgUser.first_name}${tgUser.last_name ? ` ${tgUser.last_name}` : ''}`
     : 'Студент USM';
   const avatarLetter = (tgUser?.first_name?.trim()[0] || 'А').toUpperCase();
+
+  useEffect(() => installViewportControls(), []);
 
   useEffect(() => {
     const timer = setInterval(() => setNowMinutes(getNowMinutes()), 15000);
@@ -153,8 +146,7 @@ export function App() {
         }
         setSchedule(data?.classes || data?.schedule || baseSchedule);
         setExceptions(data?.exceptions || []);
-        setCommuteOptions(data?.commuteOptions || []);
-        setMapsBrowserKey(data?.mapsBrowserKey || '');
+        setAssessments(data?.assessments || []);
         if (Array.isArray(data?.homework)) {
           setHw(
             data.homework.map((x: any) => ({
@@ -166,9 +158,7 @@ export function App() {
             }))
           );
         }
-        if (data?.transit) {
-          setTransit(data.transit);
-        }
+
         if (data?.isAdmin != null) {
           setIsAdmin(Boolean(data.isAdmin));
         }
@@ -186,48 +176,6 @@ export function App() {
 
     loadBootstrap();
   }, []);
-
-  useEffect(() => {
-    if (view !== 'map') return;
-
-    let timer: any = null;
-
-    const tick = () => {
-      request('/api/transit')
-        .then(setTransit)
-        .catch(() => {});
-    };
-
-    const start = () => {
-      tick();
-      if (!timer) timer = setInterval(tick, 60000);
-    };
-
-    const stop = () => {
-      if (timer) {
-        clearInterval(timer);
-        timer = null;
-      }
-    };
-
-    const onVisibility = () => {
-      if (document.visibilityState === 'hidden') {
-        stop();
-      } else {
-        start();
-      }
-    };
-
-    if (document.visibilityState !== 'hidden') {
-      start();
-    }
-
-    document.addEventListener('visibilitychange', onVisibility);
-    return () => {
-      stop();
-      document.removeEventListener('visibilitychange', onVisibility);
-    };
-  }, [view]);
 
   useEffect(() => {
     applyTheme(settings?.theme || 'light');
@@ -248,8 +196,10 @@ export function App() {
       } else if (exceptionModal) {
         setExceptionModal(false);
         setSelectedExceptionClass(null);
-      } else if (commuteModal) {
-        setCommuteModal(false);
+      } else if (assessmentModal) {
+        if (assessmentLocks.current.size) return;
+        setAssessmentModal(false);
+        setEditingAssessment(null);
       } else if (view === 'admin') {
         setView('settings');
       } else if (view === 'settings') {
@@ -257,7 +207,7 @@ export function App() {
       }
     };
 
-    const hasOpenModal = modal || classModal || exceptionModal || commuteModal;
+    const hasOpenModal = modal || classModal || exceptionModal || assessmentModal;
     const shouldShow = view === 'settings' || view === 'admin' || hasOpenModal;
 
     if (shouldShow) {
@@ -268,7 +218,7 @@ export function App() {
 
     back.onClick(handleBack);
     return () => back.offClick(handleBack);
-  }, [view, modal, classModal, exceptionModal, commuteModal]);
+  }, [view, modal, classModal, exceptionModal, assessmentModal]);
 
   const scheduleFor = (d: Date) => {
     const p = dateParts(d);
@@ -283,7 +233,7 @@ export function App() {
   const tomorrowRoutine = calculateMorningRoutine(
     tomorrowSchedule.classes,
     settings,
-    transit?.estimateMinutes ?? 35
+    settings.travel_minutes ?? 35
   );
 
   const weekStart = useMemo(() => {
@@ -311,8 +261,8 @@ export function App() {
 
   const routine = useMemo(() => {
     const safe = settings || DEFAULT_APP_SETTINGS;
-    return calculateMorningRoutine(daySchedule.classes, safe, transit?.estimateMinutes || 35);
-  }, [daySchedule.classes, settings, transit?.estimateMinutes]);
+    return calculateMorningRoutine(daySchedule.classes, safe, settings.travel_minutes ?? 35);
+  }, [daySchedule.classes, settings]);
 
   const saveSettings = (patch: any): Promise<void> => {
     const revision = ++settingsRevision.current;
@@ -465,7 +415,7 @@ export function App() {
     vibrate();
   };
 
-  const navigate = (v: 'home' | 'schedule' | 'hw' | 'map' | 'settings') => {
+  const navigate = (v: 'home' | 'schedule' | 'hw' | 'study' | 'settings') => {
     vibrate();
     if (view !== 'settings' && view !== 'admin') {
       previousViewRef.current = view;
@@ -474,16 +424,71 @@ export function App() {
     window.scrollTo({ top: 0, behavior: 'smooth' });
   };
 
-  const saveCommuteOption = async (optionId: string, payload: Partial<CommuteOption>) => {
-    const res = await request(`/api/transit/options/${optionId}`, {
-      method: 'PUT',
-      body: JSON.stringify(payload),
-    });
-    if (res.option) {
-      setCommuteOptions((prev) =>
-        prev.map((o) => (o.id === optionId ? { ...o, ...res.option } : o))
+  const saveAssessment = async (
+    input: AssessmentInput & { id?: string },
+    close = false
+  ): Promise<void> => {
+    const key = input.id || 'new';
+    if (assessmentLocks.current.has(key)) return;
+    assessmentLocks.current.add(key);
+    setAssessmentBusy(new Set(assessmentLocks.current));
+    try {
+      const saved: Assessment = await request(
+        input.id ? `/api/assessments/${input.id}` : '/api/assessments',
+        {
+          method: input.id ? 'PUT' : 'POST',
+          body: JSON.stringify(input),
+        }
       );
+      setAssessments((all) =>
+        input.id ? all.map((x) => (x.id === input.id ? saved : x)) : [...all, saved]
+      );
+      if (close) {
+        setAssessmentModal(false);
+        setEditingAssessment(null);
+      }
+      vibrate();
+    } catch (e: any) {
+      setError(e.message);
+      throw e;
+    } finally {
+      assessmentLocks.current.delete(key);
+      setAssessmentBusy(new Set(assessmentLocks.current));
     }
+  };
+  const deleteAssessment = async (id: string) => {
+    await request(`/api/assessments/${id}`, { method: 'DELETE' });
+    setAssessments((all) => all.filter((x) => x.id !== id));
+    setAssessmentModal(false);
+    setEditingAssessment(null);
+    vibrate();
+  };
+  const openAssessment = (item: Assessment | null = null) => {
+    if (item && assessmentLocks.current.has(item.id)) return;
+    setEditingAssessment(item);
+    setAssessmentModal(true);
+    vibrate();
+  };
+  const nextAssessment = assessments
+    .filter((x) => !x.completed && x.date >= todayKey)
+    .sort((a, b) =>
+      `${a.date}${a.time || '23:59'}`.localeCompare(`${b.date}${b.time || '23:59'}`)
+    )[0];
+  const nextClassFor = (subject: string) => {
+    if (!subject) return null;
+    for (let offset = 0; offset < 60; offset++) {
+      const date = dateShift(todayKey, offset);
+      const item = scheduleFor(localNoon(date)).classes.find(
+        (c) =>
+          c.title === subject &&
+          !c.isCancelled &&
+          (offset > 0 ||
+            c.start >
+              `${String(Math.floor(nowMinutes / 60)).padStart(2, '0')}:${String(nowMinutes % 60).padStart(2, '0')}`)
+      );
+      if (item) return { date, time: item.start };
+    }
+    return null;
   };
 
   if (!ready)
@@ -543,6 +548,29 @@ export function App() {
         </button>
       </header>
 
+      {view === 'home' && nextAssessment && (
+        <button
+          type="button"
+          className="home-assessment"
+          onClick={() => openAssessment(nextAssessment)}
+        >
+          <ClipboardList size={18} />
+          <span>
+            <b>{nextAssessment.subject}</b>
+            <small>
+              {nextAssessment.kind === 'exam' ? 'Экзамен' : 'Контрольная'} ·{' '}
+              {new Intl.DateTimeFormat('ru-RU', {
+                day: 'numeric',
+                month: 'short',
+                timeZone: TZ,
+              }).format(localNoon(nextAssessment.date))}
+              {nextAssessment.time ? ` · ${nextAssessment.time}` : ''}
+            </small>
+          </span>
+          <span>Открыть</span>
+        </button>
+      )}
+
       {view === 'admin' ? (
         <AdminView
           onBack={() => {
@@ -553,14 +581,12 @@ export function App() {
       ) : view === 'settings' ? (
         <SettingsView
           settings={settings}
-          transit={transit}
           saveState={settingsSaveState}
           save={saveSettings}
           onBack={() => {
             vibrate();
             setView(previousViewRef.current || 'home');
           }}
-          onOpenCommuteSettings={() => setCommuteModal(true)}
           isAdmin={isAdmin}
           onOpenAdmin={() => {
             vibrate();
@@ -586,29 +612,17 @@ export function App() {
           onEdit={openHw}
           onDone={toggleDone}
         />
-      ) : view === 'map' ? (
-        <Suspense
-          fallback={
-            <div className="transit-view-page map-skeleton-container" aria-busy="true">
-              <div className="map-toolbar skeleton-box" style={{ height: '90px' }} />
-              <div
-                className="transit-map-fullscreen-container skeleton-box"
-                style={{ display: 'flex', alignItems: 'center', justifyContent: 'center' }}
-              >
-                <div className="map-loading-spinner" />
-              </div>
-            </div>
-          }
-        >
-          <TransitView
-            vehicles={[]}
-            options={commuteOptions}
-            settings={settings}
-            request={request}
-            mapsBrowserKey={mapsBrowserKey}
-            onOpenCommuteSettings={() => setCommuteModal(true)}
-          />
-        </Suspense>
+      ) : view === 'study' ? (
+        <StudyView
+          items={assessments}
+          schedule={schedule}
+          homework={hw}
+          busy={assessmentBusy}
+          onAdd={() => openAssessment()}
+          onEdit={openAssessment}
+          onSave={saveAssessment}
+          onHomework={() => navigate('hw')}
+        />
       ) : (
         <HomeView
           selected={selected}
@@ -669,17 +683,18 @@ export function App() {
         </button>
         <button
           type="button"
-          className={view === 'map' ? 'active map-nav' : ''}
-          onClick={() => navigate('map')}
+          className={view === 'study' ? 'active study-nav' : ''}
+          onClick={() => navigate('study')}
         >
-          <MapIcon size={20} />
-          <span>Карта</span>
+          <ClipboardList size={20} />
+          <span>Учёба</span>
         </button>
       </nav>
 
       {modal && (
         <HomeworkModal
           item={editing}
+          nextClassFor={nextClassFor}
           subjects={[...new Set(schedule.map((item) => item.title))]}
           reminderMinutes={settings.reminder_minutes ?? 60}
           onClose={() => {
@@ -721,12 +736,16 @@ export function App() {
         />
       )}
 
-      {commuteModal && (
-        <CommuteSettingsModal
-          options={commuteOptions}
-          onClose={() => setCommuteModal(false)}
-          onSaveOption={saveCommuteOption}
-          request={request}
+      {assessmentModal && (
+        <AssessmentModal
+          item={editingAssessment}
+          subjects={[...new Set(schedule.map((c) => c.title))]}
+          onClose={() => {
+            setAssessmentModal(false);
+            setEditingAssessment(null);
+          }}
+          onSave={(input) => saveAssessment(input, true)}
+          onDelete={deleteAssessment}
         />
       )}
 
@@ -738,18 +757,7 @@ export function App() {
         </div>
       )}
 
-      {ready && (
-        <div className="tiny-footer">
-          Данные хранятся приватно ·{' '}
-          {transit.checkedAt
-            ? `Транспорт проверен ${new Intl.DateTimeFormat('ru-RU', {
-                timeZone: TZ,
-                hour: '2-digit',
-                minute: '2-digit',
-              }).format(new Date(transit.checkedAt))}`
-            : 'Ожидаем проверку транспорта'}
-        </div>
-      )}
+      <div className="tiny-footer">USM | Economice · Твой учебный ритм</div>
     </main>
   );
 }
