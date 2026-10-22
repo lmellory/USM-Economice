@@ -8,6 +8,7 @@ import './dark.css';
 import './pink.css';
 import './improvements.css';
 import './study.css';
+import './grades-files.css';
 import './home-calm.css';
 import { Assessment, AssessmentInput } from '@usm/shared';
 import { installViewportControls } from './lib/viewport.js';
@@ -90,6 +91,7 @@ export function App() {
   const [editingAssessment, setEditingAssessment] = useState<Assessment | null>(null);
   const assessmentLocks = useRef(new Set<string>());
   const [assessmentBusy, setAssessmentBusy] = useState(new Set<string>());
+  const homeworkBusyRef = useRef(false);
   const [modal, setModal] = useState(false);
   const [editing, setEditing] = useState<any>(null);
   const [homeworkDraft, setHomeworkDraft] = useState<{
@@ -197,6 +199,7 @@ export function App() {
     const handleBack = () => {
       vibrate();
       if (modal) {
+        if (homeworkBusyRef.current) return;
         setModal(false);
         setEditing(null);
       } else if (classModal) {
@@ -311,13 +314,15 @@ export function App() {
         telegramReminder: saved.telegram_reminder,
       };
       setHw((all) =>
-        body.id ? all.map((x) => (x.id === body.id ? mapped : x)) : [mapped, ...all]
+        all.some((x) => x.id === saved.id)
+          ? all.map((x) => (x.id === saved.id ? mapped : x))
+          : [mapped, ...all]
       );
-      setModal(false);
-      setEditing(null);
       vibrate();
+      return saved;
     } catch (e: any) {
       setError(e.message);
+      throw e;
     }
   };
 
@@ -693,6 +698,9 @@ export function App() {
             setEditing(null);
           }}
           onSave={saveHw}
+          onBusyChange={(busy) => {
+            homeworkBusyRef.current = busy;
+          }}
         />
       )}
 

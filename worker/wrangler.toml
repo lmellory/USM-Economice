@@ -28,3 +28,7 @@ TZ = "Europe/Chisinau"
 TRANZY_VEHICLES_URL = "https://api.tranzy.ai/v1/opendata/vehicles"
 TRANZY_REFRESH_MINUTES = "5"
 # TRANZY_AGENCY_ID = ""
+
+[[kv_namespaces]]
+binding = "HOMEWORK_FILES"
+id = "aff1d2b0336e47dfb4055db47a660b31"

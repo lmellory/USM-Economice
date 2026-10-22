@@ -7,3 +7,6 @@ export * from './admin.js';
 export * from './assessments.js';
 
 export * from './reminders.js';
+
+export * from './grades.js';
+export * from './attachments.js';

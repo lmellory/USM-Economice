@@ -1,3 +1,10 @@
+import { handleGrades } from './grades.js';
+import {
+  handleHomeworkAttachments,
+  handleAttachment,
+  handleSignedDownload,
+} from './attachments.js';
+import { reclaimAttachments } from './attachment-storage.js';
 import { handleBotCleanup } from './bot-cleanup.js';
 import { handleAssessments, mapAssessment } from './assessments.js';
 import { baseSchedule } from '@usm/shared';
@@ -66,6 +73,9 @@ async function apiRequest(request: Request, env: Env, path: string): Promise<Res
   if (!path.startsWith('/api/')) {
     return env.ASSETS.fetch(request);
   }
+
+  const download = path.match(/^\/api\/file-download\/([a-zA-Z0-9_-]+)$/);
+  if (download) return handleSignedDownload(request, env, download[1]);
 
   const user = await verifyInitData(
     request.headers.get('x-telegram-init-data') || '',
@@ -220,6 +230,13 @@ async function apiRequest(request: Request, env: Env, path: string): Promise<Res
     }
   }
 
+  const gradePath = path.match(/^\/api\/grades(?:\/([^/]+))?$/);
+  if (gradePath) return handleGrades(request, env, String(user.id), gradePath[1]);
+  const hwFiles = path.match(/^\/api\/homework\/([^/]+)\/attachments$/);
+  if (hwFiles) return handleHomeworkAttachments(request, env, String(user.id), hwFiles[1]);
+  const file = path.match(/^\/api\/files\/([^/]+)(\/link)?$/);
+  if (file) return handleAttachment(request, env, String(user.id), file[1], Boolean(file[2]));
+
   const assessmentPath = path.match(/^\/api\/assessments(?:\/([^/]+))?$/);
   if (assessmentPath) return handleAssessments(request, env, String(user.id), assessmentPath[1]);
 
@@ -272,5 +289,6 @@ export default {
 
   async scheduled(_event: ScheduledController, env: Env, ctx: ExecutionContext): Promise<void> {
     ctx.waitUntil(notificationTick(env));
+    ctx.waitUntil(reclaimAttachments(env));
   },
 };

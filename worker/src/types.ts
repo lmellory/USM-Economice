@@ -2,6 +2,7 @@ import { ClassItem } from '@usm/shared';
 
 export interface Env {
   DB: D1Database;
+  HOMEWORK_FILES?: KVNamespace;
   TURSO_URL?: string;
   TURSO_AUTH_TOKEN?: string;
   ASSETS: Fetcher;

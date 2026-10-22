@@ -43,10 +43,12 @@ export async function handleHomework(
       return json({ error: 'Заметка слишком длинная.' }, 400);
     }
 
-    const idNew = crypto.randomUUID();
+    const idNew = body.requestId ?? crypto.randomUUID();
+    if (typeof idNew !== 'string' || !/^[a-f0-9-]{36}$/i.test(idNew))
+      return json({ error: 'Не удалось подготовить задание.' }, 400);
     await db
       .prepare(
-        'INSERT INTO homework(id,user_id,title,subject,due_at,due_date,note,completed,telegram_reminder,reminder_minutes) VALUES(?,?,?,?,?,?,?,?,?,?)'
+        'INSERT INTO homework(id,user_id,title,subject,due_at,due_date,note,completed,telegram_reminder,reminder_minutes) VALUES(?,?,?,?,?,?,?,?,?,?) ON CONFLICT(id) DO UPDATE SET title=excluded.title,subject=excluded.subject,due_at=excluded.due_at,due_date=excluded.due_date,note=excluded.note,completed=excluded.completed,telegram_reminder=excluded.telegram_reminder,reminder_minutes=excluded.reminder_minutes,updated_at=CURRENT_TIMESTAMP WHERE homework.user_id=excluded.user_id'
       )
       .bind(
         idNew,
@@ -67,7 +69,7 @@ export async function handleHomework(
       .bind(idNew, userId)
       .first();
 
-    return json(created);
+    return created ? json(created) : json({ error: 'Задание не найдено.' }, 404);
   }
 
   if (request.method === 'PUT') {
