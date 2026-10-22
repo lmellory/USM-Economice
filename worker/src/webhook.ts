@@ -1,3 +1,4 @@
+import { sectionForText, inlineSections, sectionReply, miniAppBase } from './bot-menu.js';
 import { dateShift, toChisinauDate } from '@usm/shared';
 import { json } from './homework.js';
 import { buildEveningDigest, buildMorningWeatherMessage, telegram } from './notifications.js';
@@ -13,24 +14,35 @@ export async function handleWebhook(request: Request, env: Env): Promise<Respons
 
   const update: any = await request.json();
   const m = update.message;
+  if (!m?.from?.id || m.chat?.type !== 'private' || String(m.chat.id) !== String(m.from.id))
+    return json({ ok: true });
 
   if (
-    m?.text === '/start' &&
+    /^\/start(?:@[A-Za-z0-9_]+)?(?:\s|$)/.test(m?.text || '') &&
     m.from?.id &&
     m.chat?.type === 'private' &&
     String(m.chat.id) === String(m.from.id)
   ) {
-    const url = env.MINI_APP_URL;
-    const reply: any = {
+    const url = miniAppBase(env.MINI_APP_URL, new URL(request.url).origin);
+    const reply = {
       chat_id: m.chat.id,
-      text: `Твоё расписание и план дня — по кнопке ниже.\n\nКоманды:\n/weather — погода сейчас, к выходу, что надеть и пожелание на день\n/plan — вечерний план на завтра\n\nТвой Telegram ID: ${m.from.id}`,
+      text: 'USM | Economice 💚\n\nПары, задания и подготовка к экзаменам — всё под рукой. Для прямого входа выбери раздел под следующим сообщением. Клавиатура внизу тоже поможет открыть нужный раздел.\n\n/weather — погода и что надеть\n/plan — план на завтра',
+      reply_markup: botKeyboard(),
     };
-    if (url) {
-      reply.reply_markup = {
-        inline_keyboard: [[{ text: 'Открыть расписание', web_app: { url } }]],
-      };
-    }
-    await telegram(env, 'sendMessage', reply);
+    await telegram(env, 'sendMessage', reply, { keep: true });
+    await telegram(
+      env,
+      'sendMessage',
+      { chat_id: m.chat.id, text: 'Открыть USM | Economice:', reply_markup: inlineSections(url) },
+      { keep: true }
+    );
+    return json({ ok: true });
+  }
+
+  const section = sectionForText(m.text);
+  if (section) {
+    const url = miniAppBase(env.MINI_APP_URL, new URL(request.url).origin);
+    await telegram(env, 'sendMessage', { chat_id: m.chat.id, ...sectionReply(section, url) });
     return json({ ok: true });
   }
 
@@ -70,4 +82,14 @@ export async function handleWebhook(request: Request, env: Env): Promise<Respons
   }
 
   return json({ ok: true });
+}
+
+export function botKeyboard() {
+  return {
+    keyboard: [['📅 Сегодня', '🎓 Расписание'], ['📚 Сроки', '📝 Учёба'], ['⚙️ Настройки']],
+    resize_keyboard: true,
+    is_persistent: true,
+    one_time_keyboard: false,
+    input_field_placeholder: 'Выбери раздел или напиши команду',
+  };
 }

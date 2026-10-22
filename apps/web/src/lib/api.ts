@@ -46,7 +46,7 @@ export function applyTheme(theme: string): void {
   document.body.classList.toggle('dark-theme', dark);
   document.body.classList.toggle('pink-theme', pink);
 
-  const color = dark ? '#171b18' : pink ? '#fdf5f7' : tg?.themeParams?.bg_color || '#f6f5f1';
+  const color = dark ? '#171b18' : pink ? '#f5e9ed' : tg?.themeParams?.bg_color || '#f6f5f1';
 
   try {
     tg?.setHeaderColor?.(color);

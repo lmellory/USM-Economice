@@ -1,10 +1,22 @@
 import React, { useState } from 'react';
-import { Ban, Calendar, Clock, Edit2, MapPin, Plus, Sunrise, Trash2, X } from 'lucide-react';
+import {
+  Ban,
+  BookOpen,
+  Calendar,
+  Clock,
+  Edit2,
+  MapPin,
+  Plus,
+  Sunrise,
+  Trash2,
+  X,
+} from 'lucide-react';
 import { ClassItem, dayNames, ScheduleException, shortDays } from '../lib/plan.js';
 import { dateParts, fmtDate } from '../lib/time.js';
 
 interface ScheduleViewProps {
   schedule: ClassItem[];
+  onAddHomework: (item: ClassItem) => void;
   exceptions: ScheduleException[];
   onAddClass: (day: number) => void;
   onEditClass: (item: ClassItem) => void;
@@ -15,6 +27,7 @@ interface ScheduleViewProps {
 
 export function ScheduleView({
   schedule,
+  onAddHomework,
   exceptions,
   onAddClass,
   onEditClass,
@@ -128,6 +141,15 @@ export function ScheduleView({
               </div>
 
               <div className="class-card-actions">
+                <button
+                  type="button"
+                  className="class-homework-action"
+                  aria-label={'Добавить ДЗ: ' + c.title}
+                  onClick={() => onAddHomework(c)}
+                >
+                  <BookOpen size={15} />
+                  ДЗ
+                </button>
                 <button
                   type="button"
                   className="icon-action-button"

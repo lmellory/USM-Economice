@@ -1,3 +1,5 @@
+import { NotificationControls } from './NotificationControls.js';
+import { BotCleanup } from './BotCleanup.js';
 import React, { useEffect, useState } from 'react';
 import {
   Bell,
@@ -323,7 +325,7 @@ export function SettingsView({
           <Bell size={17} /> Telegram-напоминания
         </summary>
         <div className="setting-disclosure-body">
-          <p>Сообщения придут только после включения.</p>
+          <NotificationControls settings={settings} save={save} />
           <Toggle
             label="Напоминания о сроках ДЗ"
             value={Boolean(settings.reminders_enabled)}
@@ -374,6 +376,8 @@ export function SettingsView({
           </div>
         </div>
       </details>
+
+      <BotCleanup />
 
       <details className="setting-card setting-disclosure">
         <summary>

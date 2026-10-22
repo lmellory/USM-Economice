@@ -1,3 +1,4 @@
+import { initialView } from './lib/entry-view.js';
 import React, { useEffect, useMemo, useState, useRef } from 'react';
 import { createRoot } from 'react-dom/client';
 import { BookOpen, CalendarDays, CircleAlert, GraduationCap, ClipboardList, X } from 'lucide-react';
@@ -7,6 +8,7 @@ import './dark.css';
 import './pink.css';
 import './improvements.css';
 import './study.css';
+import './home-calm.css';
 import { Assessment, AssessmentInput } from '@usm/shared';
 import { installViewportControls } from './lib/viewport.js';
 import { AssessmentModal } from './components/AssessmentModal.js';
@@ -28,7 +30,9 @@ import { ClassModal } from './components/ClassModal.js';
 import { ExceptionModal } from './components/ExceptionModal.js';
 import { HomeView } from './components/HomeView.js';
 import { HomeworkModal } from './components/HomeworkModal.js';
-import { HomeworkView } from './components/HomeworkView.js';
+import { DeadlinesView } from './components/DeadlinesView.js';
+import { nextSubjectClass } from './lib/deadlines.js';
+import './deadlines.css';
 import { ScheduleView } from './components/ScheduleView.js';
 import { SettingsView } from './components/SettingsView.js';
 import { AdminView } from './components/AdminView.js';
@@ -72,7 +76,7 @@ export const DEFAULT_APP_SETTINGS = {
 
 export function App() {
   const [view, setView] = useState<'home' | 'schedule' | 'hw' | 'study' | 'settings' | 'admin'>(
-    'home'
+    () => initialView(window.location.search)
   );
   const [isAdmin, setIsAdmin] = useState(false);
   const [selected, setSelected] = useState(new Date());
@@ -88,6 +92,11 @@ export function App() {
   const [assessmentBusy, setAssessmentBusy] = useState(new Set<string>());
   const [modal, setModal] = useState(false);
   const [editing, setEditing] = useState<any>(null);
+  const [homeworkDraft, setHomeworkDraft] = useState<{
+    subject: string;
+    dueDate: string;
+    dueTime: string;
+  } | null>(null);
   const [classModal, setClassModal] = useState(false);
   const [editingClass, setEditingClass] = useState<ClassItem | null>(null);
   const [classModalInitialDay, setClassModalInitialDay] = useState(1);
@@ -96,7 +105,7 @@ export function App() {
   const [ready, setReady] = useState(false);
   const [bootstrapFailed, setBootstrapFailed] = useState(false);
   const [error, setError] = useState('');
-  const [tab, setTab] = useState('На сегодня');
+  const [tab, setTab] = useState('Все');
   const [nowMinutes, setNowMinutes] = useState(getNowMinutes);
   const settingsQueue = useRef<Promise<void>>(Promise.resolve());
   const confirmedSettings = useRef<any>(DEFAULT_APP_SETTINGS);
@@ -167,7 +176,7 @@ export function App() {
         if (tg?.initData) setError(e.message);
         else
           setError(
-            'Открой приложение через Telegram-бота. В режиме предпросмотра сохранение недоступно.'
+            'Этот способ запуска не передаёт Telegram-сессию. Отправь боту /start и открой раздел кнопкой под приветственным сообщением.'
           );
       } finally {
         setReady(true);
@@ -250,11 +259,6 @@ export function App() {
 
   const deadlines = hw.filter((x) => !x.completed && x.due_date);
   const dayTasks = hw.filter((x) => !x.completed && x.due_date === selectedInfo.key);
-  const nextTasks = hw
-    .filter((x) => !x.completed && x.due_date)
-    .sort((a, b) => String(a.due_at || a.due_date).localeCompare(String(b.due_at || b.due_date)))
-    .slice(0, 3);
-
   const studyWeekLabel = daySchedule.parity
     ? `Неделя ${daySchedule.parity === 'odd' ? 'нечётная' : 'чётная'}`
     : 'Неделя не настроена';
@@ -398,6 +402,7 @@ export function App() {
 
   const openHw = (item: any = null) => {
     setEditing(item);
+    setHomeworkDraft(null);
     setModal(true);
     vibrate();
   };
@@ -415,11 +420,12 @@ export function App() {
     vibrate();
   };
 
-  const navigate = (v: 'home' | 'schedule' | 'hw' | 'study' | 'settings') => {
+  const navigate = (v: 'home' | 'schedule' | 'hw' | 'study' | 'settings', homeworkTab?: string) => {
     vibrate();
     if (view !== 'settings' && view !== 'admin') {
       previousViewRef.current = view;
     }
+    if (v === 'hw' && homeworkTab) setTab(homeworkTab);
     setView(v);
     window.scrollTo({ top: 0, behavior: 'smooth' });
   };
@@ -469,26 +475,14 @@ export function App() {
     setAssessmentModal(true);
     vibrate();
   };
-  const nextAssessment = assessments
-    .filter((x) => !x.completed && x.date >= todayKey)
-    .sort((a, b) =>
-      `${a.date}${a.time || '23:59'}`.localeCompare(`${b.date}${b.time || '23:59'}`)
-    )[0];
-  const nextClassFor = (subject: string) => {
-    if (!subject) return null;
-    for (let offset = 0; offset < 60; offset++) {
-      const date = dateShift(todayKey, offset);
-      const item = scheduleFor(localNoon(date)).classes.find(
-        (c) =>
-          c.title === subject &&
-          !c.isCancelled &&
-          (offset > 0 ||
-            c.start >
-              `${String(Math.floor(nowMinutes / 60)).padStart(2, '0')}:${String(nowMinutes % 60).padStart(2, '0')}`)
-      );
-      if (item) return { date, time: item.start };
-    }
-    return null;
+  const nextClassFor = (subject: string) =>
+    nextSubjectClass(schedule, exceptions, settings, subject, new Date());
+  const addHomeworkForClass = (item: ClassItem) => {
+    const next = nextClassFor(item.title);
+    setEditing(null);
+    setHomeworkDraft({ subject: item.title, dueDate: next?.date || '', dueTime: next?.time || '' });
+    setModal(true);
+    vibrate();
   };
 
   if (!ready)
@@ -503,6 +497,14 @@ export function App() {
       <main className="app loading-screen">
         <h1>Не удалось загрузить данные</h1>
         <p role="alert">{error}</p>
+        {!tg?.initData && (
+          <a
+            className="primary-btn telegram-reopen"
+            href="https://t.me/USM_Economice_anul_anbot?start=menu"
+          >
+            Перейти к боту и обновить меню
+          </a>
+        )}
         <button type="button" className="primary-btn" onClick={() => window.location.reload()}>
           Попробовать ещё раз
         </button>
@@ -548,29 +550,6 @@ export function App() {
         </button>
       </header>
 
-      {view === 'home' && nextAssessment && (
-        <button
-          type="button"
-          className="home-assessment"
-          onClick={() => openAssessment(nextAssessment)}
-        >
-          <ClipboardList size={18} />
-          <span>
-            <b>{nextAssessment.subject}</b>
-            <small>
-              {nextAssessment.kind === 'exam' ? 'Экзамен' : 'Контрольная'} ·{' '}
-              {new Intl.DateTimeFormat('ru-RU', {
-                day: 'numeric',
-                month: 'short',
-                timeZone: TZ,
-              }).format(localNoon(nextAssessment.date))}
-              {nextAssessment.time ? ` · ${nextAssessment.time}` : ''}
-            </small>
-          </span>
-          <span>Открыть</span>
-        </button>
-      )}
-
       {view === 'admin' ? (
         <AdminView
           onBack={() => {
@@ -595,6 +574,7 @@ export function App() {
         />
       ) : view === 'schedule' ? (
         <ScheduleView
+          onAddHomework={addHomeworkForClass}
           schedule={schedule}
           exceptions={exceptions}
           onAddClass={(day) => openClassModal(day, null)}
@@ -604,13 +584,17 @@ export function App() {
           vibrate={vibrate}
         />
       ) : view === 'hw' ? (
-        <HomeworkView
-          items={hw}
+        <DeadlinesView
+          homework={hw}
+          assessments={assessments}
           tab={tab}
           setTab={setTab}
-          onAdd={() => openHw()}
-          onEdit={openHw}
-          onDone={toggleDone}
+          onAddHomework={() => openHw()}
+          onAddEvent={() => openAssessment()}
+          onEditHomework={openHw}
+          onEditEvent={openAssessment}
+          onDoneHomework={toggleDone}
+          onDoneEvent={saveAssessment}
         />
       ) : view === 'study' ? (
         <StudyView
@@ -625,6 +609,7 @@ export function App() {
         />
       ) : (
         <HomeView
+          onAddHomework={addHomeworkForClass}
           selected={selected}
           setSelected={setSelected}
           weekOffset={weekOffset}
@@ -643,7 +628,10 @@ export function App() {
           routine={routine}
           nowMinutes={nowMinutes}
           dayTasks={dayTasks}
-          nextTasks={nextTasks}
+          nextTasks={hw.filter((x) => !x.completed && x.due_date)}
+          assessments={assessments}
+          onOpenAssessment={openAssessment}
+          onOpenHomework={openHw}
           deadlines={deadlines}
           dayNames={dayNames}
           navigate={navigate}
@@ -677,9 +665,10 @@ export function App() {
         >
           <span className="nav-icon">
             <BookOpen size={20} />
-            {hw.some((x) => !x.completed && x.due_date === todayKey) && <i />}
+            {(hw.some((x) => !x.completed && x.due_date === todayKey) ||
+              assessments.some((x) => !x.completed && x.date === todayKey)) && <i />}
           </span>
-          <span>ДЗ</span>
+          <span>Сроки</span>
         </button>
         <button
           type="button"
@@ -694,6 +683,7 @@ export function App() {
       {modal && (
         <HomeworkModal
           item={editing}
+          draft={homeworkDraft}
           nextClassFor={nextClassFor}
           subjects={[...new Set(schedule.map((item) => item.title))]}
           reminderMinutes={settings.reminder_minutes ?? 60}
@@ -756,8 +746,6 @@ export function App() {
           <X size={14} />
         </div>
       )}
-
-      <div className="tiny-footer">USM | Economice · Твой учебный ритм</div>
     </main>
   );
 }

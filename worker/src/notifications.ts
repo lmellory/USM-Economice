@@ -1,3 +1,4 @@
+import { quietUntil, dailyDue } from './notification-preferences.js';
 import { queueAssessmentReminders, assessmentReminderMessage } from './assessments.js';
 import {
   applyScheduleExceptions,
@@ -13,37 +14,8 @@ import { mapClassRow, mapExceptionRow } from './classes.js';
 import { Env } from './types.js';
 import { createDb } from './db.js';
 
-export class TelegramApiError extends Error {
-  constructor(
-    public readonly code: number,
-    message: string
-  ) {
-    super(message);
-    this.name = 'TelegramApiError';
-  }
-}
-export async function telegram(env: Env, method: string, body: unknown): Promise<any> {
-  const response = await fetch(`https://api.telegram.org/bot${env.BOT_TOKEN}/${method}`, {
-    method: 'POST',
-    headers: { 'content-type': 'application/json' },
-    body: JSON.stringify(body),
-    signal: AbortSignal.timeout(15000),
-  });
-  const payload = (await response.json()) as any;
-  if (!response.ok || payload?.ok === false) {
-    const code = Number(payload?.error_code || response.status);
-    const reason =
-      code === 403
-        ? 'Пользователь заблокировал бота или не разрешил сообщения.'
-        : code === 429
-          ? 'Telegram ограничил частоту отправки. Попробуй позже.'
-          : code === 400
-            ? 'Telegram отклонил сообщение: проверь получателя и текст.'
-            : 'Telegram отклонил отправку сообщения.';
-    throw new TelegramApiError(code, reason);
-  }
-  return payload;
-}
+export { telegram, TelegramApiError } from './telegram.js';
+import { telegram } from './telegram.js';
 
 export const DAILY_WISHES_31 = [
   'Пусть сегодня всё складывается легко, пары пролетят незаметно, а кофе будет идеальным! ☕✨',
@@ -236,7 +208,15 @@ export async function buildMorningWeatherMessage(
     const lines = [
       `${greetingLine} Погода в Кишинёве на сегодня:`,
       '',
-      '🌡 Сейчас (07:00):',
+      '🌡 Сейчас (' +
+        (requestedHour == null
+          ? '07:00'
+          : new Intl.DateTimeFormat('ru-RU', {
+              timeZone: 'Europe/Chisinau',
+              hour: '2-digit',
+              minute: '2-digit',
+            }).format(new Date())) +
+        '):',
       `• ${curDesc}`,
       `• Температура: ${curTemp > 0 ? `+${curTemp}` : curTemp}°C (ощущается как ${curApparent > 0 ? `+${curApparent}` : curApparent}°C)`,
       `• Ветер: ${wind} км/ч`,
@@ -248,8 +228,7 @@ export async function buildMorningWeatherMessage(
       '🧥 Что надеть:',
       `${clothing}`,
       '',
-      '✨ Пожелание на день:',
-      `${wish}`,
+      ...(u?.daily_wishes ? ['✨ Пожелание на день:', `${wish}`] : []),
     ];
 
     return lines.filter((l) => l !== null).join('\n');
@@ -257,10 +236,9 @@ export async function buildMorningWeatherMessage(
     return [
       `${greetingLine}`,
       '',
-      'Не удалось загрузить детальный прогноз погоды, но в Кишинёве тебя ждёт отличный день!',
+      'Прогноз погоды пока недоступен. Попробуй команду /weather позже.',
       '',
-      '✨ Пожелание на день:',
-      `${wish}`,
+      ...(u?.daily_wishes ? ['✨ Пожелание на день:', `${wish}`] : []),
     ].join('\n');
   }
 }
@@ -385,36 +363,31 @@ export async function notificationTick(env: Env): Promise<void> {
 
   const db = createDb(env);
 
-  // Trigger 21:00 evening digest
-  if (curHour === 21 && curMin <= 2) {
-    const tomorrow = dateShift(today, 1);
-    const notifyUsers = await db.prepare('SELECT id AS user_id FROM users').all<any>();
-    if (notifyUsers.results && notifyUsers.results.length > 0) {
-      const inserts = notifyUsers.results.map((u: any) =>
+  const dailyUsers = await db
+    .prepare(
+      'SELECT user_id,daily_summary_enabled,daily_summary_time,weather_enabled,weather_time FROM settings WHERE daily_summary_enabled=1 OR weather_enabled=1'
+    )
+    .all<any>();
+  const dailyInserts = [];
+  for (const u of dailyUsers.results) {
+    if (u.daily_summary_enabled && dailyDue(u.daily_summary_time, '21:00', now))
+      dailyInserts.push(
         db
           .prepare(
             'INSERT INTO notification_log(user_id,event_key,next_attempt) VALUES(?,?,?) ON CONFLICT(user_id,event_key) DO NOTHING'
           )
-          .bind(u.user_id, `evening:${today}:${tomorrow}`, nowIso)
+          .bind(u.user_id, `evening:${today}:${dateShift(today, 1)}`, nowIso)
       );
-      await db.batch(inserts);
-    }
-  }
-
-  // Trigger 07:00 morning weather digest
-  if (curHour === 7 && curMin <= 2) {
-    const notifyUsers = await db.prepare('SELECT id AS user_id FROM users').all<any>();
-    if (notifyUsers.results && notifyUsers.results.length > 0) {
-      const inserts = notifyUsers.results.map((u: any) =>
+    if (u.weather_enabled && dailyDue(u.weather_time, '07:00', now))
+      dailyInserts.push(
         db
           .prepare(
             'INSERT INTO notification_log(user_id,event_key,next_attempt) VALUES(?,?,?) ON CONFLICT(user_id,event_key) DO NOTHING'
           )
-          .bind(u.user_id, `morning_weather:${today}:07-00`, nowIso)
+          .bind(u.user_id, `morning_weather:${today}:scheduled`, nowIso)
       );
-      await db.batch(inserts);
-    }
   }
+  if (dailyInserts.length) await db.batch(dailyInserts);
 
   // Optimize cron: check if anyone has active notification preferences
   const activeCount = await db
@@ -572,6 +545,36 @@ export async function notificationTick(env: Env): Promise<void> {
   for (const n of pending.results) {
     const pieces = String(n.event_key).split(':');
     let message = '';
+    const preferences = await db
+      .prepare('SELECT * FROM settings WHERE user_id=?')
+      .bind(n.user_id)
+      .first<any>();
+    const flag: Record<string, string> = {
+      homework: 'reminders_enabled',
+      wake: 'wake_reminder',
+      sleep: 'sleep_reminder',
+      leave: 'leave_reminder',
+      evening: 'daily_summary_enabled',
+      morning_weather: 'weather_enabled',
+    };
+    const disabled = flag[pieces[0]] && !preferences?.[flag[pieces[0]]];
+    const staleDaily = ['evening', 'morning_weather'].includes(pieces[0]) && pieces[1] !== today;
+    const quiet = quietUntil(preferences, now);
+    const skipDuringQuiet = quiet && ['wake', 'sleep', 'leave'].includes(pieces[0]);
+    if (disabled || staleDaily || skipDuringQuiet) {
+      await db
+        .prepare('UPDATE notification_log SET sent_at=?,next_attempt=NULL WHERE id=?')
+        .bind(nowIso, n.id)
+        .run();
+      continue;
+    }
+    if (quiet) {
+      await db
+        .prepare('UPDATE notification_log SET next_attempt=? WHERE id=?')
+        .bind(quiet.toISOString(), n.id)
+        .run();
+      continue;
+    }
 
     if (pieces[0] === 'assessment') {
       message = (await assessmentReminderMessage(db, n.user_id, String(n.event_key), now)) || '';
@@ -585,12 +588,20 @@ export async function notificationTick(env: Env): Promise<void> {
     } else if (pieces[0] === 'homework') {
       const h = await db
         .prepare(
-          'SELECT title,due_at,due_date FROM homework WHERE id=? AND user_id=? AND completed=0'
+          'SELECT title,due_at,due_date,telegram_reminder FROM homework WHERE id=? AND user_id=? AND completed=0'
         )
         .bind(pieces[1], n.user_id)
         .first<any>();
 
-      if (!h) {
+      if (
+        !h ||
+        !h.telegram_reminder ||
+        `homework:${pieces[1]}:${h.due_at || h.due_date}` !== n.event_key ||
+        (h.due_at
+          ? Date.parse(h.due_at) <=
+            now.getTime() - (Number(preferences.reminder_minutes) === 0 ? 120000 : 0)
+          : h.due_date < today)
+      ) {
         await db
           .prepare('UPDATE notification_log SET sent_at=? WHERE id=?')
           .bind(nowIso, n.id)
@@ -631,7 +642,8 @@ export async function notificationTick(env: Env): Promise<void> {
         .prepare('SELECT first_name FROM users WHERE id=?')
         .bind(n.user_id)
         .first<any>();
-      message = (await buildMorningWeatherMessage(env, n.user_id, today, u?.first_name)) || '';
+      message =
+        (await buildMorningWeatherMessage(env, n.user_id, today, u?.first_name, curHour)) || '';
       if (!message) {
         await db
           .prepare('UPDATE notification_log SET sent_at=? WHERE id=?')

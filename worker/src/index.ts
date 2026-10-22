@@ -1,3 +1,4 @@
+import { handleBotCleanup } from './bot-cleanup.js';
 import { handleAssessments, mapAssessment } from './assessments.js';
 import { baseSchedule } from '@usm/shared';
 import { verifyInitData } from './auth.js';
@@ -85,7 +86,9 @@ async function apiRequest(request: Request, env: Env, path: string): Promise<Res
         )
         .bind(String(user.id), user.first_name || ''),
       db
-        .prepare('INSERT INTO settings(user_id) VALUES(?) ON CONFLICT(user_id) DO NOTHING')
+        .prepare(
+          'INSERT INTO settings(user_id,home_address) VALUES(?,NULL) ON CONFLICT(user_id) DO NOTHING'
+        )
         .bind(String(user.id)),
     ]);
   } catch (userDbErr) {
@@ -149,6 +152,8 @@ async function apiRequest(request: Request, env: Env, path: string): Promise<Res
       isAdmin: isUserAdmin(env, String(user.id)),
     });
   }
+
+  if (path === '/api/bot/cleanup') return handleBotCleanup(request, env, String(user.id));
 
   if (path === '/api/admin/stats' && request.method === 'GET') {
     return handleAdminStats(request, env, String(user.id));

@@ -25,10 +25,16 @@ export const settingsColumns: Record<string, string> = {
   target_bedtime: 'target_bedtime',
   hairDryMinutes: 'hair_dry_minutes',
   hair_dry_minutes: 'hair_dry_minutes',
-  homeAddress: 'home_address',
-  home_address: 'home_address',
   universityAddress: 'university_address',
   university_address: 'university_address',
+  quiet_hours_enabled: 'quiet_hours_enabled',
+  quiet_start: 'quiet_start',
+  quiet_end: 'quiet_end',
+  daily_summary_enabled: 'daily_summary_enabled',
+  daily_summary_time: 'daily_summary_time',
+  weather_enabled: 'weather_enabled',
+  weather_time: 'weather_time',
+  daily_wishes: 'daily_wishes',
   theme: 'theme',
   remindersEnabled: 'reminders_enabled',
   reminders_enabled: 'reminders_enabled',
@@ -55,8 +61,15 @@ export const DEFAULT_SETTINGS = {
   travel_buffer: 10,
   travel_minutes: 35,
   target_bedtime: '00:15',
-  home_address: 'strada Tudor Strișcă 8/7, Chișinău',
   university_address: 'strada Alexei Mateevici 60, Chișinău',
+  quiet_hours_enabled: false,
+  quiet_start: '23:00',
+  quiet_end: '08:00',
+  daily_summary_enabled: false,
+  daily_summary_time: '21:00',
+  weather_enabled: false,
+  weather_time: '07:00',
+  daily_wishes: false,
   theme: 'light',
   reminders_enabled: false,
   reminder_minutes: 60,
@@ -67,9 +80,14 @@ export const DEFAULT_SETTINGS = {
 
 export function dbSettings(s: any): any {
   if (!s) return { ...DEFAULT_SETTINGS };
+  const { home_address, homeAddress, ...publicSettings } = s;
   return {
     ...DEFAULT_SETTINGS,
-    ...s,
+    ...publicSettings,
+    quiet_hours_enabled: bool(s.quiet_hours_enabled),
+    daily_summary_enabled: bool(s.daily_summary_enabled),
+    weather_enabled: bool(s.weather_enabled),
+    daily_wishes: bool(s.daily_wishes),
     wash_minutes: s.wash_minutes ?? 20,
     hair_dry_minutes: s.hair_dry_minutes ?? 5,
     breakfast_minutes: s.breakfast_minutes ?? 30,
@@ -91,7 +109,10 @@ export function validatedSettings(body: any): Record<string, unknown> {
 
     let val = rawValue;
 
-    if (col === 'english_duration') {
+    if (['quiet_start', 'quiet_end', 'daily_summary_time', 'weather_time'].includes(col)) {
+      if (typeof val !== 'string' || !/^([01]\d|2[0-3]):[0-5]\d$/.test(val))
+        throw new Error('Укажи корректное время (ЧЧ:ММ).');
+    } else if (col === 'english_duration') {
       if (val === null || val === undefined || val === '' || val === 0) {
         val = null;
       } else {
@@ -125,13 +146,20 @@ export function validatedSettings(body: any): Record<string, unknown> {
       else if (val !== null && val !== undefined && !/^\d{4}-\d{2}-\d{2}$/.test(String(val))) {
         throw new Error('Некорректная дата семестра.');
       }
-    } else if (col === 'home_address' || col === 'university_address') {
-      if (typeof val === 'string' && val.length > 300) {
-        throw new Error('Адрес слишком длинный.');
-      }
+    } else if (col === 'university_address') {
+      if (typeof val === 'string' && val.length > 300) throw new Error('Адрес слишком длинный.');
       val = val ? String(val).trim() : null;
     } else if (
-      ['reminders_enabled', 'wake_reminder', 'sleep_reminder', 'leave_reminder'].includes(col)
+      [
+        'reminders_enabled',
+        'wake_reminder',
+        'sleep_reminder',
+        'leave_reminder',
+        'quiet_hours_enabled',
+        'daily_summary_enabled',
+        'weather_enabled',
+        'daily_wishes',
+      ].includes(col)
     ) {
       val = bool(val) ? 1 : 0;
     } else if (

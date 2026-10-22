@@ -53,6 +53,7 @@ describe('Weather notification & 31 wishes', () => {
             if (sql.includes('FROM settings')) {
               return {
                 first_name: 'Александр',
+                daily_wishes: 1,
                 sleep_hours: 8,
                 travel_minutes: 35,
               };
@@ -99,12 +100,7 @@ describe('Weather notification & 31 wishes', () => {
     });
 
     try {
-      const msg = await buildMorningWeatherMessage(
-        mockEnv,
-        'user-123',
-        '2026-10-08',
-        'Александр'
-      );
+      const msg = await buildMorningWeatherMessage(mockEnv, 'user-123', '2026-10-08', 'Александр');
 
       // Verify dot after name
       expect(msg).toContain('Доброе утро, Александр.');

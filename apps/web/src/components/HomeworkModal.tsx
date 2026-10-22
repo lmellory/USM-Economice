@@ -4,6 +4,7 @@ import { TZ, zonedIso } from '../lib/time.js';
 
 interface HomeworkModalProps {
   item: any | null;
+  draft?: { subject: string; dueDate: string; dueTime: string } | null;
   reminderMinutes: number;
   nextClassFor: (subject: string) => { date: string; time: string } | null;
   subjects: string[];
@@ -13,6 +14,7 @@ interface HomeworkModalProps {
 
 export function HomeworkModal({
   item,
+  draft,
   subjects,
   reminderMinutes,
   nextClassFor,
@@ -22,8 +24,8 @@ export function HomeworkModal({
   const savingRef = useRef(false);
   const [saving, setSaving] = useState(false);
   const [title, setTitle] = useState(item?.title || '');
-  const [subject, setSubject] = useState(item?.subject || '');
-  const [dueDate, setDueDate] = useState(item?.due_date || '');
+  const [subject, setSubject] = useState(item?.subject || draft?.subject || '');
+  const [dueDate, setDueDate] = useState(item?.due_date || draft?.dueDate || '');
   const [dueTime, setDueTime] = useState(
     item?.due_at
       ? new Date(item.due_at).toLocaleTimeString('ru-RU', {
@@ -32,7 +34,7 @@ export function HomeworkModal({
           minute: '2-digit',
           hour12: false,
         })
-      : ''
+      : draft?.dueTime || ''
   );
   const [note, setNote] = useState(item?.note || '');
   const [remind, setRemind] = useState(item?.telegram_reminder || false);
@@ -98,6 +100,8 @@ export function HomeworkModal({
             {subjects.map((s) => (
               <button
                 key={s}
+                aria-label={s}
+                aria-pressed={subject === s}
                 type="button"
                 className={subject === s ? 'on' : ''}
                 onClick={() => {
@@ -187,7 +191,7 @@ export function HomeworkModal({
           {saving ? 'Сохраняем…' : item ? 'Сохранить' : 'Добавить задание'}
         </button>
 
-        <p className="modal-foot">Без срока — значит без срока. Я ничего не назначу сама.</p>
+        <p className="modal-foot">Срок можно изменить или оставить пустым.</p>
       </section>
     </div>
   );

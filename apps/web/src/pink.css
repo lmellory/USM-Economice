@@ -1,10 +1,10 @@
 body.pink-theme {
-  --bg: #fdf5f7;
-  --surface: #ffffff;
-  --card-bg: #ffffff;
-  --border: #f4dbe2;
+  --bg: #f5e9ed;
+  --surface: #f8eef1;
+  --card-bg: #f8eef1;
+  --border: #e8cfd8;
   --text: #3b242a;
-  --muted: #966b77;
-  --accent: #c45b76;
-  --card-shadow: 0 4px 18px rgba(196, 100, 123, 0.1);
+  --muted: #875a67;
+  --accent: #b9526e;
+  --card-shadow: 0 4px 18px rgba(164, 77, 101, 0.09);
 }

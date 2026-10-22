@@ -56,9 +56,8 @@ export function StudyView({
     <div className="study-view">
       <div className="study-heading">
         <div>
-          <span className="eyebrow">БЕЗ АВРАЛОВ</span>
           <h1>Учёба</h1>
-          <p>Контрольные, экзамены и подготовка.</p>
+          <p>Предстоящих событий: {upcoming.length}.</p>
         </div>
         <button
           className="study-add"
@@ -84,8 +83,8 @@ export function StudyView({
       ) : (
         <div className="study-welcome">
           <BookOpenCheck size={28} />
-          <strong>Начни с ближайшей контрольной</strong>
-          <p>Добавь дату и темы, чтобы готовиться по шагам.</p>
+          <strong>Контрольных и экзаменов пока нет</strong>
+          <p>Добавь событие, дату и темы подготовки.</p>
           <button type="button" className="primary-btn" onClick={onAdd}>
             Добавить событие
           </button>
@@ -104,7 +103,7 @@ export function StudyView({
       <div className="study-section-title">
         <h2>По предметам</h2>
         <button type="button" onClick={onHomework}>
-          ДЗ: {homeworkCount} <ArrowUpRight size={14} />
+          Все сроки <ArrowUpRight size={14} />
         </button>
       </div>
       <div className="study-subjects" aria-label="Фильтр по предмету">
