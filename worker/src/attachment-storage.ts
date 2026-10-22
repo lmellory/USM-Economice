@@ -4,7 +4,7 @@ import { Env } from './types.js';
 
 export async function readUpload(request: Request): Promise<Uint8Array> {
   const length = Number(request.headers.get('content-length'));
-  if (length > MAX_ATTACHMENT_BYTES) throw new Error('Файл больше 5 МБ.');
+  if (length > MAX_ATTACHMENT_BYTES) throw new Error('Файл больше 25 МБ.');
   if (!request.body) throw new Error('Выбери непустой файл.');
   const reader = request.body.getReader(),
     parts: Uint8Array[] = [];
@@ -16,7 +16,7 @@ export async function readUpload(request: Request): Promise<Uint8Array> {
       size += value.length;
       if (size > MAX_ATTACHMENT_BYTES) {
         await reader.cancel();
-        throw new Error('Файл больше 5 МБ.');
+        throw new Error('Файл больше 25 МБ.');
       }
       parts.push(value);
     }

@@ -49,7 +49,7 @@ export function useHomeworkAttachments(initialId?: string) {
       return;
     }
     if (files.some((f) => !f.size || f.size > MAX_ATTACHMENT_BYTES)) {
-      setError('Выбери непустые файлы размером до 5 МБ каждый.');
+      setError('Выбери непустые файлы размером до 25 МБ каждый.');
       return;
     }
     if (files.some((f) => !attachmentMime(f.name))) {
@@ -156,7 +156,7 @@ export function HomeworkAttachments({
         </b>
         <small>{files.items.length + files.pending.length}/5</small>
       </div>
-      <p>Фото задания, методичка или конспект. До 5 МБ на файл.</p>
+      <p>Фото задания, методичка или конспект. До 25 МБ на файл.</p>
       {files.loading && <p role="status">Загружаем список файлов…</p>}
       {files.items.map((item) => (
         <div className="hw-file" key={item.id}>

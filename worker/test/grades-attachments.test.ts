@@ -296,3 +296,87 @@ it('retries a homework save after a lost response without duplicating the task o
       .status
   ).toBe(404);
 });
+
+it('accepts and downloads a file at the full 25 MiB boundary', async () => {
+  expect(MAX_ATTACHMENT_BYTES).toBe(25 * 1024 * 1024);
+  const bytes = new Uint8Array(MAX_ATTACHMENT_BYTES);
+  bytes.fill(32);
+  bytes.set(new TextEncoder().encode('%PDF-1.7\n'));
+  const response = await upload('Большая методичка.pdf', bytes);
+  expect(response.status).toBe(200);
+  const file = (await response.json()) as any;
+  expect(file.size).toBe(MAX_ATTACHMENT_BYTES);
+  const downloaded = await handleAttachment(new Request('https://test'), env, '1', file.id);
+  expect(downloaded.headers.get('content-length')).toBe(String(MAX_ATTACHMENT_BYTES));
+  const body = new Uint8Array(await downloaded.arrayBuffer());
+  expect(body.byteLength).toBe(MAX_ATTACHMENT_BYTES);
+  expect(new TextDecoder().decode(body.slice(0, 9))).toBe('%PDF-1.7\n');
+});
+
+it('widens the database limit without losing existing files, ownership or deletion cleanup', () => {
+  const old = new DatabaseSync(':memory:');
+  try {
+    const dir = new URL('../migrations/', import.meta.url);
+    for (const file of readdirSync(dir)
+      .filter((f) => f.endsWith('.sql') && !f.startsWith('0016'))
+      .sort())
+      old.exec(readFileSync(new URL(file, dir), 'utf8'));
+    old.exec(
+      "INSERT INTO users(id,first_name) VALUES('1','Анна');INSERT INTO homework(id,user_id,title) VALUES('hw','1','Задание')"
+    );
+    old
+      .prepare(
+        "INSERT INTO homework_attachments(id,user_id,homework_id,name,mime,size,storage_key,ready) VALUES('old','1','hw','a.pdf','application/pdf',5,'object-key',1)"
+      )
+      .run();
+    expect(() =>
+      old
+        .prepare(
+          "INSERT INTO homework_attachments(id,user_id,homework_id,name,mime,size,storage_key,ready) VALUES('large','1','hw','b.pdf','application/pdf',?,'large-key',1)"
+        )
+        .run(5 * 1024 * 1024 + 1)
+    ).toThrow();
+    old.exec('BEGIN');
+    old.exec(readFileSync(new URL('0016_attachment_limit_25mb.sql', dir), 'utf8'));
+    old.exec('COMMIT');
+    expect(
+      old
+        .prepare(
+          "SELECT id,user_id,homework_id,name,size,storage_key,ready FROM homework_attachments WHERE id='old'"
+        )
+        .get()
+    ).toMatchObject({
+      id: 'old',
+      user_id: '1',
+      homework_id: 'hw',
+      name: 'a.pdf',
+      size: 5,
+      storage_key: 'object-key',
+      ready: 1,
+    });
+    old
+      .prepare(
+        "INSERT INTO homework_attachments(id,user_id,homework_id,name,mime,size,storage_key,ready) VALUES('large','1','hw','b.pdf','application/pdf',?,'large-key',1)"
+      )
+      .run(MAX_ATTACHMENT_BYTES);
+    expect(() =>
+      old
+        .prepare(
+          "INSERT INTO homework_attachments(id,user_id,name,mime,size,storage_key) VALUES('bad','1','c.pdf','application/pdf',?,'bad')"
+        )
+        .run(MAX_ATTACHMENT_BYTES + 1)
+    ).toThrow();
+    old.exec("DELETE FROM homework WHERE id='hw'");
+    expect(
+      (old.prepare("SELECT homework_id FROM homework_attachments WHERE id='old'").get() as any)
+        .homework_id
+    ).toBeNull();
+    expect(
+      (old.prepare("SELECT homework_id FROM homework_attachments WHERE id='large'").get() as any)
+        .homework_id
+    ).toBeNull();
+    expect(old.prepare('PRAGMA foreign_key_check').all()).toEqual([]);
+  } finally {
+    old.close();
+  }
+});

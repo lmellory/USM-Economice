@@ -1,4 +1,4 @@
-export const MAX_ATTACHMENT_BYTES = 5 * 1024 * 1024;
+export const MAX_ATTACHMENT_BYTES = 25 * 1024 * 1024;
 export const MAX_HOMEWORK_ATTACHMENTS = 5;
 export const MAX_USER_ATTACHMENT_BYTES = 100 * 1024 * 1024;
 export const ATTACHMENT_ACCEPT = '.jpg,.jpeg,.png,.webp,.pdf,.doc,.docx,.xls,.xlsx,.ppt,.pptx,.txt';

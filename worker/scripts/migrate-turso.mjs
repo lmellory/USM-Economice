@@ -18,10 +18,7 @@ function loadDevVars() {
     if (eqIdx === -1) continue;
     const key = trimmed.slice(0, eqIdx).trim();
     let val = trimmed.slice(eqIdx + 1).trim();
-    if (
-      (val.startsWith('"') && val.endsWith('"')) ||
-      (val.startsWith("'") && val.endsWith("'"))
-    ) {
+    if ((val.startsWith('"') && val.endsWith('"')) || (val.startsWith("'") && val.endsWith("'"))) {
       val = val.slice(1, -1);
     }
     vars[key] = val;
@@ -75,11 +72,20 @@ async function run() {
     const sql = fs.readFileSync(filePath, 'utf8');
 
     try {
-      await client.executeMultiple(sql);
-      await client.execute({
-        sql: 'INSERT INTO _migrations (name) VALUES (?)',
-        args: [file],
-      });
+      const transaction = await client.transaction('write');
+      try {
+        await transaction.executeMultiple(sql);
+        await transaction.execute({
+          sql: 'INSERT INTO _migrations (name) VALUES (?)',
+          args: [file],
+        });
+        await transaction.commit();
+      } catch (error) {
+        await transaction.rollback().catch(() => {});
+        throw error;
+      } finally {
+        transaction.close();
+      }
       console.log(`  ✅ ${file} успешно применена`);
       appliedCount++;
     } catch (err) {
@@ -107,7 +113,9 @@ run().catch((err) => {
   if (err?.message?.includes('401') || err?.status === 401 || String(err).includes('401')) {
     console.error('\n❌ Ошибка авторизации (401 Unauthorized) от Turso.');
     console.error('Токен TURSO_AUTH_TOKEN не подошёл к базе данных.');
-    console.error('Нужно сгенерировать свежий токен в панели Turso: выбери базу -> Generate Token.');
+    console.error(
+      'Нужно сгенерировать свежий токен в панели Turso: выбери базу -> Generate Token.'
+    );
   } else {
     console.error('Непредвиденная ошибка:', err);
   }
