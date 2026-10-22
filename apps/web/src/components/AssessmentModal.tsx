@@ -1,5 +1,6 @@
+import { ReminderSelect } from './ReminderSelect.js';
 import React, { useEffect, useRef, useState } from 'react';
-import { Bell, Plus, Trash2, X } from 'lucide-react';
+import { Plus, Trash2, X } from 'lucide-react';
 import {
   Assessment,
   AssessmentInput,
@@ -260,22 +261,12 @@ export function AssessmentModal({
                 </button>
               </div>
             </div>
-            <label>
-              <span className="inline-label">
-                <Bell size={15} /> Напомнить в Telegram
-              </span>
-              <select
-                value={reminder ?? ''}
-                onChange={(e) => setReminder(e.target.value === '' ? null : Number(e.target.value))}
-              >
-                <option value="">Без напоминания</option>
-                <option value="60">За час</option>
-                <option value="180">За 3 часа</option>
-                <option value="1440">За день</option>
-                <option value="4320">За 3 дня</option>
-                <option value="10080">За неделю</option>
-              </select>
-            </label>
+            <ReminderSelect
+              label="Напомнить в Telegram"
+              allowOff
+              value={reminder}
+              onChange={setReminder}
+            />
             {reminder !== null && (
               <p className="assessment-hint">
                 {time

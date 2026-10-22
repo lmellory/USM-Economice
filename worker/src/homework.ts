@@ -1,3 +1,4 @@
+import { validReminderMinutes } from '@usm/shared';
 import { Env } from './types.js';
 import { createDb } from './db.js';
 
@@ -31,14 +32,22 @@ export async function handleHomework(
     if (body.title.length > 200) {
       return json({ error: 'Название задания не может превышать 200 символов.' }, 400);
     }
+    if (
+      body.reminderMinutes !== undefined &&
+      body.reminderMinutes !== null &&
+      !validReminderMinutes(body.reminderMinutes)
+    )
+      return json({ error: 'Выбери время напоминания: до недели перед сроком.' }, 400);
+
     if (body.note && String(body.note).length > 4000) {
       return json({ error: 'Заметка слишком длинная.' }, 400);
     }
 
     const idNew = crypto.randomUUID();
-    await db.prepare(
-      'INSERT INTO homework(id,user_id,title,subject,due_at,due_date,note,completed,telegram_reminder) VALUES(?,?,?,?,?,?,?,?,?)'
-    )
+    await db
+      .prepare(
+        'INSERT INTO homework(id,user_id,title,subject,due_at,due_date,note,completed,telegram_reminder,reminder_minutes) VALUES(?,?,?,?,?,?,?,?,?,?)'
+      )
       .bind(
         idNew,
         userId,
@@ -48,11 +57,13 @@ export async function handleHomework(
         body.dueDate ?? null,
         body.note ?? null,
         Number(Boolean(body.completed)),
-        Number(Boolean(body.telegramReminder))
+        Number(Boolean(body.telegramReminder)),
+        body.reminderMinutes ?? null
       )
       .run();
 
-    const created = await db.prepare('SELECT * FROM homework WHERE id=? AND user_id=?')
+    const created = await db
+      .prepare('SELECT * FROM homework WHERE id=? AND user_id=?')
       .bind(idNew, userId)
       .first();
 
@@ -72,6 +83,13 @@ export async function handleHomework(
     if (typeof body.title === 'string' && (!body.title.trim() || body.title.length > 200)) {
       return json({ error: 'Проверь название задания.' }, 400);
     }
+    if (
+      body.reminderMinutes !== undefined &&
+      body.reminderMinutes !== null &&
+      !validReminderMinutes(body.reminderMinutes)
+    )
+      return json({ error: 'Выбери время напоминания: до недели перед сроком.' }, 400);
+
     if (body.note && String(body.note).length > 4000) {
       return json({ error: 'Заметка слишком длинная.' }, 400);
     }
@@ -84,6 +102,7 @@ export async function handleHomework(
       note: 'note',
       completed: 'completed',
       telegramReminder: 'telegram_reminder',
+      reminderMinutes: 'reminder_minutes',
     };
 
     const entries = Object.entries(body).filter(([k]) => k in cols);
@@ -94,15 +113,15 @@ export async function handleHomework(
       k === 'completed' || k === 'telegramReminder' ? Number(Boolean(v)) : v
     );
 
-    const result = await db.prepare(
-      `UPDATE homework SET ${sets},updated_at=CURRENT_TIMESTAMP WHERE id=? AND user_id=?`
-    )
+    const result = await db
+      .prepare(`UPDATE homework SET ${sets},updated_at=CURRENT_TIMESTAMP WHERE id=? AND user_id=?`)
       .bind(...values, id, userId)
       .run();
 
     if (!result.meta.changes) return json({ error: 'Задание не найдено.' }, 404);
 
-    const updated = await db.prepare('SELECT * FROM homework WHERE id=? AND user_id=?')
+    const updated = await db
+      .prepare('SELECT * FROM homework WHERE id=? AND user_id=?')
       .bind(id, userId)
       .first();
 
@@ -110,7 +129,8 @@ export async function handleHomework(
   }
 
   if (request.method === 'DELETE' && id) {
-    const result = await db.prepare('DELETE FROM homework WHERE id=? AND user_id=?')
+    const result = await db
+      .prepare('DELETE FROM homework WHERE id=? AND user_id=?')
       .bind(id, userId)
       .run();
     return json({ deleted: Boolean(result.meta.changes) });

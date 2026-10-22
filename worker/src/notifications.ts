@@ -1,3 +1,9 @@
+import {
+  homeworkDeadline,
+  homeworkOffset,
+  homeworkReminderAt,
+  homeworkReminderKey,
+} from './homework-reminders.js';
 import { quietUntil, dailyDue } from './notification-preferences.js';
 import { queueAssessmentReminders, assessmentReminderMessage } from './assessments.js';
 import {
@@ -414,21 +420,24 @@ export async function notificationTick(env: Env): Promise<void> {
   // Process Homework reminders
   const due = await db
     .prepare(
-      'SELECT h.id,h.user_id,h.title,h.due_at,h.due_date,s.reminder_minutes FROM homework h JOIN settings s ON s.user_id=h.user_id WHERE h.completed=0 AND h.telegram_reminder=1 AND s.reminders_enabled=1 AND h.due_date IS NOT NULL AND h.due_date>=?'
+      'SELECT h.id,h.user_id,h.title,h.due_at,h.due_date,h.reminder_minutes,s.reminder_minutes AS default_reminder_minutes FROM homework h JOIN settings s ON s.user_id=h.user_id WHERE h.completed=0 AND h.telegram_reminder=1 AND s.reminders_enabled=1 AND h.due_date IS NOT NULL AND h.due_date>=?'
     )
     .bind(today)
     .all<any>();
 
   const hwInserts: any[] = [];
   for (const h of due.results) {
-    const target = h.due_at
-      ? Date.parse(h.due_at) - Number(h.reminder_minutes) * 60000
-      : localInstant(h.due_date, 9 * 60);
+    const target = homeworkReminderAt(h, h.default_reminder_minutes);
+    const deadline = homeworkDeadline(h);
 
-    if (!Number.isFinite(target) || target > now.getTime() || target < now.getTime() - 120000) {
+    if (
+      !Number.isFinite(target) ||
+      target > now.getTime() ||
+      deadline <= now.getTime() - (homeworkOffset(h, h.default_reminder_minutes) === 0 ? 120000 : 0)
+    ) {
       continue;
     }
-    const key = `homework:${h.id}:${h.due_at || h.due_date}`;
+    const key = homeworkReminderKey(h, h.default_reminder_minutes);
     hwInserts.push(
       db
         .prepare(
@@ -588,7 +597,7 @@ export async function notificationTick(env: Env): Promise<void> {
     } else if (pieces[0] === 'homework') {
       const h = await db
         .prepare(
-          'SELECT title,due_at,due_date,telegram_reminder FROM homework WHERE id=? AND user_id=? AND completed=0'
+          'SELECT id,title,due_at,due_date,telegram_reminder,reminder_minutes FROM homework WHERE id=? AND user_id=? AND completed=0'
         )
         .bind(pieces[1], n.user_id)
         .first<any>();
@@ -596,11 +605,10 @@ export async function notificationTick(env: Env): Promise<void> {
       if (
         !h ||
         !h.telegram_reminder ||
-        `homework:${pieces[1]}:${h.due_at || h.due_date}` !== n.event_key ||
-        (h.due_at
-          ? Date.parse(h.due_at) <=
-            now.getTime() - (Number(preferences.reminder_minutes) === 0 ? 120000 : 0)
-          : h.due_date < today)
+        homeworkReminderKey(h, preferences.reminder_minutes) !== n.event_key ||
+        homeworkReminderAt(h, preferences.reminder_minutes) > now.getTime() ||
+        homeworkDeadline(h) <=
+          now.getTime() - (homeworkOffset(h, preferences.reminder_minutes) === 0 ? 120000 : 0)
       ) {
         await db
           .prepare('UPDATE notification_log SET sent_at=? WHERE id=?')

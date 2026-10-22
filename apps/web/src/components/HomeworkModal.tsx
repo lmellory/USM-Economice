@@ -1,3 +1,5 @@
+import { ReminderSelect } from './ReminderSelect.js';
+import { reminderLabel } from '@usm/shared';
 import React, { useRef, useState } from 'react';
 import { Bell, X } from 'lucide-react';
 import { TZ, zonedIso } from '../lib/time.js';
@@ -6,6 +8,7 @@ interface HomeworkModalProps {
   item: any | null;
   draft?: { subject: string; dueDate: string; dueTime: string } | null;
   reminderMinutes: number;
+  remindersEnabled: boolean;
   nextClassFor: (subject: string) => { date: string; time: string } | null;
   subjects: string[];
   onClose: () => void;
@@ -17,6 +20,7 @@ export function HomeworkModal({
   draft,
   subjects,
   reminderMinutes,
+  remindersEnabled,
   nextClassFor,
   onClose,
   onSave,
@@ -38,6 +42,7 @@ export function HomeworkModal({
   );
   const [note, setNote] = useState(item?.note || '');
   const [remind, setRemind] = useState(item?.telegram_reminder || false);
+  const [offset, setOffset] = useState<number>(item?.reminder_minutes ?? reminderMinutes);
   const [custom, setCustom] = useState(Boolean(item?.subject && !subjects.includes(item.subject)));
 
   const nextClass = nextClassFor(subject);
@@ -56,6 +61,7 @@ export function HomeworkModal({
         dueAt: dueDate && dueTime ? zonedIso(dueDate, dueTime) : null,
         note: note || null,
         telegramReminder: remind,
+        reminderMinutes: offset,
         completed: item?.completed || false,
       });
     } finally {
@@ -174,12 +180,33 @@ export function HomeworkModal({
             <Bell size={16} />
             <span>
               <b>Напомнить в Telegram</b>
-              <small>
-                {dueTime ? `За ${reminderMinutes} мин до срока` : 'Утром в 09:00 по Кишинёву'}
-              </small>
+              <small>{reminderLabel(offset)}</small>
             </span>
             <span className="switch" />
           </button>
+        )}
+
+        {dueDate && remind && (
+          <>
+            <ReminderSelect
+              value={offset}
+              onChange={(v) => {
+                if (v !== null) setOffset(v);
+              }}
+            />
+            {!remindersEnabled && (
+              <p className="assessment-hint">
+                Уведомления о ДЗ выключены. Включи «Напоминания о сроках ДЗ» в настройках, чтобы
+                получать сообщения.
+              </p>
+            )}
+            <p className="assessment-hint">
+              {dueTime
+                ? 'Время — по Кишинёву.'
+                : 'Время сдачи не указано: отсчёт от 09:00 по Кишинёву.'}{' '}
+              Если до срока осталось меньше выбранного интервала, напомним при ближайшей проверке.
+            </p>
+          </>
         )}
 
         <button

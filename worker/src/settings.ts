@@ -1,3 +1,5 @@
+import { validReminderMinutes } from '@usm/shared';
+
 const bool = (v: unknown): boolean => v === true || v === 1;
 
 export const settingsColumns: Record<string, string> = {
@@ -112,6 +114,9 @@ export function validatedSettings(body: any): Record<string, unknown> {
     if (['quiet_start', 'quiet_end', 'daily_summary_time', 'weather_time'].includes(col)) {
       if (typeof val !== 'string' || !/^([01]\d|2[0-3]):[0-5]\d$/.test(val))
         throw new Error('Укажи корректное время (ЧЧ:ММ).');
+    } else if (col === 'reminder_minutes') {
+      if (!validReminderMinutes(val))
+        throw new Error('Выбери время напоминания: до недели перед сроком.');
     } else if (col === 'english_duration') {
       if (val === null || val === undefined || val === '' || val === 0) {
         val = null;

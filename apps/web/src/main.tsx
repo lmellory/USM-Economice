@@ -687,6 +687,7 @@ export function App() {
           nextClassFor={nextClassFor}
           subjects={[...new Set(schedule.map((item) => item.title))]}
           reminderMinutes={settings.reminder_minutes ?? 60}
+          remindersEnabled={Boolean(settings.reminders_enabled)}
           onClose={() => {
             setModal(false);
             setEditing(null);

@@ -1,3 +1,4 @@
+import { ReminderSelect } from './ReminderSelect.js';
 import { NotificationControls } from './NotificationControls.js';
 import { BotCleanup } from './BotCleanup.js';
 import React, { useEffect, useState } from 'react';
@@ -331,30 +332,14 @@ export function SettingsView({
             value={Boolean(settings.reminders_enabled)}
             onChange={(v: boolean) => save({ remindersEnabled: v, reminders_enabled: v })}
           />
-          <label className="setting-field">
-            За сколько до срока
-            <div>
-              <input
-                type="number"
-                min="0"
-                value={numericDrafts.reminder_minutes ?? settings.reminder_minutes ?? 60}
-                onChange={(e) =>
-                  setNumericDrafts((drafts) => ({ ...drafts, reminder_minutes: e.target.value }))
-                }
-                onBlur={(e) => {
-                  const value = e.target.value;
-                  setNumericDrafts((drafts) => {
-                    const next = { ...drafts };
-                    delete next.reminder_minutes;
-                    return next;
-                  });
-                  if (value.trim() && Number.isFinite(Number(value)) && Number(value) >= 0)
-                    void save({ reminder_minutes: Number(value) });
-                }}
-              />
-              <span>мин</span>
-            </div>
-          </label>
+          <ReminderSelect
+            label="Напоминать о ДЗ по умолчанию"
+            value={settings.reminder_minutes ?? 60}
+            onChange={(value) => {
+              void save({ reminder_minutes: value });
+            }}
+          />
+          <p className="assessment-hint">В каждом задании можно выбрать свой интервал.</p>
           <Toggle
             label="Напомнить о подъёме"
             value={Boolean(settings.wake_reminder)}

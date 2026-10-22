@@ -1,4 +1,5 @@
 import { dateParts, zonedIso } from './time.js';
+import { REMINDER_OPTIONS } from './reminders.js';
 
 export type AssessmentKind = 'test' | 'exam';
 export interface PreparationTopic {
@@ -65,7 +66,7 @@ export function validateAssessment(value: unknown): AssessmentInput {
   if (
     v.reminderMinutes !== null &&
     (!Number.isInteger(v.reminderMinutes) ||
-      ![60, 180, 1440, 4320, 10080].includes(v.reminderMinutes as number))
+      !REMINDER_OPTIONS.some((o) => o.minutes === v.reminderMinutes))
   )
     throw new Error('Выбери время напоминания.');
   if (!Array.isArray(v.topics) || v.topics.length > 50)

@@ -5,3 +5,5 @@ export * from './commute.js';
 export * from './admin.js';
 
 export * from './assessments.js';
+
+export * from './reminders.js';
